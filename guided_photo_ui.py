@@ -9,6 +9,7 @@ from detection_review import review_detections, ALLOWED
 from component_ocr import read_markings
 from datasheet_catalog import manufacturer_search_url
 from measurement_reference import compare
+from probe_points import validate_probe_points
 from model_inference import detect_components
 
 def open_guided_window(parent, image_path=None):
@@ -46,6 +47,12 @@ def open_guided_window(parent, image_path=None):
             task=tasks[index[0]]
             x1,y1,x2,y2=task["bbox_xyxy_pixels"]
             draw.rectangle((x1,y1,x2,y2),outline="#ff2424",width=max(3,img.width//250))
+            if "probe_points" in task:
+                for name,color in (("red","#ff2424"),("black","#171717")):
+                    px,py=task["probe_points"][name]
+                    r=max(6,img.width//170)
+                    draw.ellipse((px-r,py-r,px+r,py+r),fill=color,outline="#ffffff",width=2)
+                    draw.text((px+r+2,py-r),name.upper(),fill=color)
             draw.text((x1,max(0,y1-18)),str(task["id"])+" "+task["source_label"],fill="#ff2424")
             status.set(f"{index[0]+1}/{len(tasks)} | {task['source_label']} | Mod: {task['mode']} | {task['instruction']}")
         img.thumbnail((920,540))
@@ -140,6 +147,38 @@ def open_guided_window(parent, image_path=None):
             dialog.destroy()
         ttk.Button(dialog,text="Kodu doğrula",command=confirm).pack(pady=8)
 
+    def mark_probes():
+        if not tasks:
+            messagebox.showinfo("Tespit gerekli","Önce komponent seçin.",parent=win)
+            return
+        task=tasks[index[0]]
+        dialog=tk.Toplevel(win)
+        dialog.title("Prob noktalarını elle doğrula")
+        dialog.geometry("480x300")
+        ttk.Label(dialog,text="Fotoğraftaki piksel koordinatlarını girin; pin işlevini datasheet ile kontrol edin.",wraplength=440).pack(pady=8)
+        fields={}
+        for name in ("Kırmızı X","Kırmızı Y","Siyah X","Siyah Y"):
+            line=ttk.Frame(dialog)
+            line.pack(pady=3)
+            ttk.Label(line,text=name,width=14).pack(side="left")
+            field=ttk.Entry(line,width=12)
+            field.pack(side="left")
+            fields[name]=field
+        confirmed=tk.BooleanVar(value=False)
+        ttk.Checkbutton(dialog,text="Pinleri ve ölçüm noktalarını kendim doğruladım",variable=confirmed).pack(pady=8)
+        def apply():
+            try:
+                red=(float(fields["Kırmızı X"].get()),float(fields["Kırmızı Y"].get()))
+                black=(float(fields["Siyah X"].get()),float(fields["Siyah Y"].get()))
+                points=validate_probe_points(source.size,task["bbox_xyxy_pixels"],red,black,confirmed.get())
+                task["probe_points"]=points
+                feedback.set(points["warning"])
+                render()
+                dialog.destroy()
+            except ValueError as exc:
+                messagebox.showerror("Prob işaretleme hatası",str(exc),parent=dialog)
+        ttk.Button(dialog,text="Noktaları kaydet",command=apply).pack(pady=8)
+
     def submit():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent tespitlerini yükleyin.",parent=win)
@@ -202,7 +241,7 @@ def open_guided_window(parent, image_path=None):
     controls=ttk.Frame(win)
     controls.pack(pady=10)
     for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
-                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
+                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
                           ("Sonuçları kaydet",save_results)]:
         ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
     render()
