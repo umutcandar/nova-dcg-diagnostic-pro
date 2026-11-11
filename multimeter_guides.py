@@ -20,7 +20,12 @@ GUIDES = {
     "mosfet": Guide("MOSFET","Diyot / Ω","Enerjiyi kesin, kapasitörleri güvenli deşarj edin; gate yükünü kontrol edin.","G/D/S pinleri yalnızca doğrulanmış datasheet ve paket yönüne göre belirlenir.","Model ve devre topolojisi bilinmeden kesin değer verilemez.","Önce pin eşlemesini doğrulayın, sonra kontrollü test planı uygulayın."),
     "ic": Guide("Entegre","Datasheet'e bağlı","Enerji ve ESD güvenliği için üretici talimatını izleyin.","Pin numarası, paket yönü ve test noktaları teknisyen tarafından doğrulanmalıdır.","Genel geçer pin voltajı yoktur; devre şeması ve datasheet gereklidir.","Besleme, toprak ve test koşullarını doğrulayarak uygun ölçüm planını oluşturun."),
 }
-ALIASES={"direnç":"resistor","kondansatör":"capacitor","kapasitör":"capacitor","diyot":"diode","entegre":"ic"}
+GUIDES.update({
+    "inductor": Guide("Bobin","Ω","Kart enerjisiz olmalı; kondansatörleri güvenle deşarj edin.","Sargı uçlarını doğrulayıp ölçün.","Bobinin DC direnci düşük olabilir; tek değer arızayı kanıtlamaz.","Sargı sürekliliğini ve devre topolojisini kontrol edin."),
+    "transistor": Guide("Transistör","Diyot testi","Kart enerjisiz ve deşarj edilmiş olmalı.","B/E/C pinlerini doğrulanmış parça kodu ve datasheet ile eşleyin.","BJT tipi ve bağlantılar bilinmeden aralık verilemez.","İleri ve ters yön okumalarını datasheet'e göre karşılaştırın."),
+    "connector": Guide("Konnektör","Süreklilik / Ω","Kart enerjisiz olmalı.","İlgili bağlantının uç noktalarını şemadan doğrulayın.","Hat uzunluğu ve bağlanan devre bilinmeden sabit sınır yoktur.","Kablo ve lehim sürekliliğini kontrol edin."),
+})
+ALIASES={"direnç":"resistor","kondansatör":"capacitor","kapasitör":"capacitor","diyot":"diode","entegre":"ic","bobin":"inductor","transistör":"transistor","konnektör":"connector"}
 def guide_for(component, nominal=None, tolerance_percent=None, unit=None):
     key=ALIASES.get(component.strip().lower(),component.strip().lower())
     if key not in GUIDES:
