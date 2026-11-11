@@ -7,8 +7,10 @@ import hashlib
 import urllib.request
 from pathlib import Path
 
-URL = "https://raw.githubusercontent.com/wangshnegqi/pcb-component-detection-dataset-yolo/main/models/yolov8s_pcb_best.pt"
+URL = "https://media.githubusercontent.com/media/wangshnegqi/pcb-component-detection-dataset-yolo/main/models/yolov8s_pcb_best.pt"
 DEFAULT = Path("models") / "yolov8s_pcb_best.pt"
+EXPECTED_SHA256 = "ad21e33f0962e3a23119223e0f82ef7d189ef118a8d4b79d51ab62187612e93c"
+EXPECTED_SIZE = 89552854
 
 def download(destination=DEFAULT):
     destination = Path(destination)
@@ -24,7 +26,11 @@ def download(destination=DEFAULT):
         with temp.open("rb") as check:
             if check.read(64).startswith(b"version https://git-lfs.github.com/spec/v1"):
                 raise ValueError("Git LFS pointer downloaded instead of model weights")
+        if temp.stat().st_size != EXPECTED_SIZE:
+            raise ValueError(f"Model size mismatch: {temp.stat().st_size} != {EXPECTED_SIZE}")
         digest=hashlib.sha256(temp.read_bytes()).hexdigest()
+        if digest != EXPECTED_SHA256:
+            raise ValueError("Model SHA256 mismatch; refusing unverified weights")
         temp.replace(destination)
     finally:
         temp.unlink(missing_ok=True)
