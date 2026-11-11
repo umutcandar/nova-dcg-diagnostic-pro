@@ -84,10 +84,38 @@ def open_guided_window(parent, image_path=None):
     ttk.Entry(row,textvariable=value,width=15).pack(side="left",padx=6)
     feedback=tk.StringVar()
     ttk.Label(win,textvariable=feedback,wraplength=920).pack(padx=10,pady=6)
+    displayed_size=[0,0]
+    def select_component_at(x,y):
+        if not tasks or not displayed_size[0] or not displayed_size[1]:
+            return False
+        ix=x*source.width/displayed_size[0]
+        iy=y*source.height/displayed_size[1]
+        matches=[]
+        for i,task in enumerate(tasks):
+            x1,y1,x2,y2=task["bbox_xyxy_pixels"]
+            if x1<=ix<=x2 and y1<=iy<=y2:
+                matches.append(((x2-x1)*(y2-y1),i))
+        if not matches:
+            return False
+        index[0]=min(matches)[1]
+        value.set("")
+        nominal.set("")
+        tolerance.set("")
+        unit.set("")
+        feedback.set("")
+        render()
+        return True
+    def on_photo_click(event):
+        select_component_at(event.x,event.y)
+    photo.bind("<Button-1>",on_photo_click)
     def render():
         img=source.copy()
         draw=ImageDraw.Draw(img)
         if tasks:
+            for n,candidate in enumerate(tasks):
+                bx1,by1,bx2,by2=candidate["bbox_xyxy_pixels"]
+                color="#ff2424" if n==index[0] else "#f4b400"
+                draw.rectangle((bx1,by1,bx2,by2),outline=color,width=max(3,img.width//250))
             task=tasks[index[0]]
             x1,y1,x2,y2=task["bbox_xyxy_pixels"]
             draw.rectangle((x1,y1,x2,y2),outline="#ff2424",width=max(3,img.width//250))
@@ -100,6 +128,7 @@ def open_guided_window(parent, image_path=None):
             draw.text((x1,max(0,y1-18)),str(task["id"])+" "+task["source_label"],fill="#ff2424")
             status.set(f"{index[0]+1}/{len(tasks)} | {task['source_label']} | Mod: {task['mode']} | {task['instruction']}")
         img.thumbnail((640,540))
+        displayed_size[:]=list(img.size)
         picture=ImageTk.PhotoImage(img)
         photo.configure(image=picture)
         photo.image=picture
