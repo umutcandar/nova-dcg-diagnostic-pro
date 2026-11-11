@@ -1,4 +1,6 @@
 """Headless GUI smoke test for photo-triggered automatic model analysis."""
+import os
+import sys
 import tempfile
 import time
 import tkinter as tk
@@ -10,6 +12,10 @@ from PIL import Image
 from gui import App
 
 
+@unittest.skipUnless(
+    bool(os.environ.get("DISPLAY")) or sys.platform in ("darwin", "win32"),
+    "Requires a graphical display (GitHub's GUI workflow uses xvfb-run)."
+)
 class AutomaticPhotoGUITests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
