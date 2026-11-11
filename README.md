@@ -1,3 +1,22 @@
+# NOVA DCG Diagnostic Pro — otomatik fotoğraf akışı (V1.5)
+
+## MacBook M1: bir kez kur, ardından fotoğraf seç
+
+Proje klasöründeki sanal ortam aktifken:
+
+```bash
+python -m pip install -r requirements.txt
+python gui.py
+```
+
+- **Kart fotoğrafı seç** ile JPEG/PNG/WebP açıldığında model kontrolü, gerekirse yaklaşık **90 MB** eğitilmiş checkpoint'in SHA256 doğrulamasıyla indirilmesi ve YOLO taraması arka planda başlar. Arayüz donmaz; durum önizlemenin altında görünür.
+- Komponent adayları kutularla işaretlenir ve en az bir aday bulunursa fotoğraf üzerinde ölçüm rehberi **kendiliğinden açılır**. Model tahminleri doğrulanmamıştır, otomatik arıza teşhisi değildir.
+- İlk kurulumda Ultralytics bağımlılığı PyPI'den yüklenir. Doğrulanmış checkpoint kaynağı üçüncü taraf açık PCB modelidir. İnternet veya kurulum sorunu varsa uygulama nedenini gösterir; parça türü tahmin ediyormuş gibi davranmaz.
+- Ölçüm değerleri Fluke üzerinden **manuel** girilir. Fotoğraftan güvenilir prob pinleri, gerçek nominal değer ve parça sağlamlığı belirlenemez.
+- Otomatik model denetimi: `python -m unittest -v test_auto_detector`. Tk UI otomasyon testi GitHub Actions'da sanal ekranla çalıştırılır.
+
+---
+
 # NOVA DCG Diagnostic Pro V0.2
 
 M1 MacBook üzerinde Fluke multimetre ölçümlerini **manuel** kaydetmek için masaüstü prototipi.
