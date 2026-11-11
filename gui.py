@@ -12,6 +12,7 @@ from guide import GUIDES, steps_for
 from report import create_pdf
 from diagnosis import prioritize
 from annotator import mark_photo
+from component_labeler import launch_labeler
 
 def assess(mode, value):
     if value < 0:
@@ -70,6 +71,7 @@ class App:
         self.table.pack(fill="both", expand=True)
         buttons = ttk.Frame(main)
         buttons.pack(fill="x", pady=12)
+        ttk.Button(buttons, text="Komponent etiketle", command=self.label_components).pack(side="left", padx=4)
         ttk.Button(buttons, text="Fotoğrafı işaretle", command=self.annotate).pack(side="left", padx=4)
         ttk.Button(buttons, text="Olası kontrolleri sırala", command=self.show_findings).pack(side="left", padx=4)
         ttk.Button(buttons, text="PDF servis raporu", command=self.pdf_report).pack(side="left", padx=4)
@@ -99,6 +101,15 @@ class App:
         box.pack(fill="both", expand=True)
         box.insert("1.0", content)
         box.configure(state="disabled")
+
+    def label_components(self):
+        if not self.photo:
+            messagebox.showinfo("Fotoğraf gerekli", "Önce kart fotoğrafı seçin.")
+            return
+        try:
+            launch_labeler(self.root, self.photo)
+        except Exception as exc:
+            messagebox.showerror("Etiketleme hatası", str(exc))
 
     def annotate(self):
         if not self.photo:
