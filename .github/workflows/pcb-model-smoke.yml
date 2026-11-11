@@ -6,7 +6,9 @@ on:
       - 'model_inference.py'
       - 'detection_pipeline.py'
       - 'download_and_test_model.py'
-      - 'test_model_download.py'
+      - 'test_*.py'
+      - 'measurement_triage.py'
+      - 'model_preflight.py'
       - '.github/workflows/pcb-model-smoke.yml'
 jobs:
   detector:
@@ -25,15 +27,6 @@ jobs:
         run: python -m unittest discover -v -p "test_*.py"
       - name: Download verified model
         run: python download_and_test_model.py
-      - name: Obtain public PCB image
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import urllib.request
-          url="https://raw.githubusercontent.com/ultralytics/assets/main/imags/bus.jpg"
-          # This generic photo is only a connectivity check; PCB sample is required for detection.
-          print("Image fixture must be supplied from a licensed PCB dataset.")
-          PY
       - name: Check checkpoint loading and class compatibility
         run: |
           python - <<'PY'
@@ -45,5 +38,12 @@ jobs:
           print("Checkpoint classes:",actual)
           if actual!=SOURCE_CLASSES:
               raise SystemExit("Unexpected checkpoint class names")
-          print("Checkpoint loaded; photo inference still needs a PCB image.")
+          from PIL import Image
+          from pathlib import Path
+          from detection_pipeline import review_image
+          Path("test_output").mkdir(exist_ok=True)
+          Image.new("RGB",(640,640),(180,180,180)).save("test_output/synthetic_input.png")
+          result=review_image("test_output/synthetic_input.png","models/yolov8s_pcb_best.pt","test_output")
+          print("Synthetic image inference completed:",result)
+          print("This validates execution only, not PCB detection accuracy.")
           PY
