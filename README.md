@@ -18,3 +18,7 @@ macOS Python kurulumunda Tkinter bulunmalıdır. `python3 -m tkinter` ile kontro
 Eski terminal sürümü: `python3 diagnostic.py`.
 
 **Sınırlar:** Gerçek kart üzerinde doğrulanmadı; otomatik teşhis, yapay zekâ, kamera üzerinden komponent tanıma ve PDF raporu henüz yok. Yalnızca enerjisiz, artık gerilimi doğrulanmış düşük gerilimli kartlarda kullanın. Şebeke/yüksek gerilimli kartlarda kullanmayın.
+
+## V0.3 ölçüm rehberi
+
+Arayüzde **Kontrol rehberi** menüsünden Güç girişi, Sigorta, Diyot, Kondansatör veya Direnç seçip **Ölçüm adımlarını göster** düğmesini kullanın. Rehber kesin teşhis sunmaz. Rehber mantığı `guide.py` dosyasındadır. Basit birim testleri: `python3 -m unittest test_guide.py`.
