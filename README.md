@@ -1,13 +1,20 @@
-# NOVA DCG Diagnostic Pro V0.1
+# NOVA DCG Diagnostic Pro V0.2
 
-M1 MacBook ve Fluke multimetre ile manuel ölçüm kaydı için ilk Python prototipi.
+M1 MacBook üzerinde Fluke multimetre ölçümlerini **manuel** kaydetmek için masaüstü prototipi.
 
-## Başlatma
+## Grafik arayüzü açma
 
 ```bash
-python3 diagnostic.py
+python3 gui.py
 ```
 
-`resistance` (ohm), `diode` (volt) veya `quit` yazın. Kayıtlar `measurements.json` dosyasına yazılır.
+macOS Python kurulumunda Tkinter bulunmalıdır. `python3 -m tkinter` ile kontrol edin. Yoksa Tk destekli Python kurulumu gerekir.
 
-**Güvenlik:** Sadece enerjisiz ve artık gerilimi kontrol edilmiş düşük gerilimli devrelerde kullanın. Yazılım kesin arıza teşhisi yapmaz. Görsel arayüz, kamera analizi, yapay zekâ ve PDF henüz yoktur.
+- İş/kart numarası ve fotoğraf dosyası seçimi (fotoğraf **analiz edilmez**)
+- Direnç (Ω) ve diyot (V) değerlerini elle girme
+- İhtiyatlı ön değerlendirme
+- JSON ve CSV kayıt dışa aktarma
+
+Eski terminal sürümü: `python3 diagnostic.py`.
+
+**Sınırlar:** Gerçek kart üzerinde doğrulanmadı; otomatik teşhis, yapay zekâ, kamera üzerinden komponent tanıma ve PDF raporu henüz yok. Yalnızca enerjisiz, artık gerilimi doğrulanmış düşük gerilimli kartlarda kullanın. Şebeke/yüksek gerilimli kartlarda kullanmayın.
