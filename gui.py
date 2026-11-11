@@ -8,6 +8,7 @@ import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from guide import GUIDES, steps_for
 
 def assess(mode, value):
     if value < 0:
@@ -51,6 +52,13 @@ class App:
         self.value.grid(row=1, column=3, padx=8)
         ttk.Label(form, text="Değer →").grid(row=1, column=4)
         ttk.Button(main, text="Ölçümü kaydet ve değerlendir", command=self.add).pack(anchor="w", pady=10)
+        guide_row = ttk.Frame(main)
+        guide_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(guide_row, text="Kontrol rehberi:").pack(side="left")
+        self.component = ttk.Combobox(guide_row, values=list(GUIDES), state="readonly", width=22)
+        self.component.current(0)
+        self.component.pack(side="left", padx=8)
+        ttk.Button(guide_row, text="Ölçüm adımlarını göster", command=self.show_guide).pack(side="left")
         self.table = ttk.Treeview(main, columns=("point","mode","value","note"), show="headings", height=11)
         for key, label, width in [("point","Test noktası",115),("mode","Mod",100),("value","Değer",85),("note","Ön değerlendirme",470)]:
             self.table.heading(key, text=label)
@@ -62,6 +70,12 @@ class App:
         ttk.Button(buttons, text="CSV rapor", command=lambda:self.export("csv")).pack(side="left", padx=4)
         ttk.Button(buttons, text="Ölçümleri temizle", command=self.clear).pack(side="left", padx=4)
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
+
+    def show_guide(self):
+        component = self.component.get()
+        steps = steps_for(component)
+        messagebox.showinfo("Kontrol rehberi: " + component,
+                            "\\n\\n".join(str(i) + ". " + step for i, step in enumerate(steps, 1)))
 
     def pick_photo(self):
         path = filedialog.askopenfilename(filetypes=[("Fotoğraflar","*.png *.jpg *.jpeg *.heic"),("Tüm dosyalar","*.*")])
