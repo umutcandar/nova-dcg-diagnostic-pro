@@ -10,6 +10,7 @@ from component_ocr import read_markings
 from datasheet_catalog import manufacturer_search_url
 from measurement_reference import compare
 from probe_points import validate_probe_points
+from photo_coordinates import image_to_widget_point
 from model_inference import detect_components
 
 def open_guided_window(parent, image_path=None):
@@ -179,6 +180,55 @@ def open_guided_window(parent, image_path=None):
                 messagebox.showerror("Prob işaretleme hatası",str(exc),parent=dialog)
         ttk.Button(dialog,text="Noktaları kaydet",command=apply).pack(pady=8)
 
+    def click_to_mark_probes():
+        if not tasks:
+            messagebox.showinfo("Tespit gerekli","Önce komponent seçin.",parent=win)
+            return
+        task=tasks[index[0]]
+        dialog=tk.Toplevel(win)
+        dialog.title("Fotoğrafa tıklayarak prob noktası seç")
+        dialog.geometry("980x680")
+        ttk.Label(dialog,text="Önce KIRMIZI, sonra SİYAH probun temas noktasına tıklayın. Pinleri datasheet ile doğrulayın.").pack(pady=6)
+        preview=source.copy()
+        preview.thumbnail((930,520))
+        display_size=preview.size
+        preview_tk=ImageTk.PhotoImage(preview)
+        canvas=tk.Canvas(dialog,width=display_size[0],height=display_size[1],highlightthickness=0)
+        canvas.pack(pady=6)
+        canvas.create_image(0,0,image=preview_tk,anchor="nw")
+        canvas.image=preview_tk
+        points=[]
+        def clicked(event):
+            try:
+                point=image_to_widget_point(event.x,event.y,source.size,display_size)
+                x1,y1,x2,y2=task["bbox_xyxy_pixels"]
+                if not (x1<=point[0]<=x2 and y1<=point[1]<=y2):
+                    raise ValueError("Seçilen nokta komponent kutusunun dışında")
+                if len(points)>=2:
+                    points.clear()
+                    canvas.delete("probe")
+                points.append(point)
+                color="red" if len(points)==1 else "black"
+                canvas.create_oval(event.x-6,event.y-6,event.x+6,event.y+6,fill=color,outline="white",tags="probe")
+            except ValueError as exc:
+                messagebox.showwarning("Geçersiz nokta",str(exc),parent=dialog)
+        canvas.bind("<Button-1>",clicked)
+        confirmed=tk.BooleanVar(value=False)
+        ttk.Checkbutton(dialog,text="Pin işlevlerini ve prob yerlerini kendim doğruladım",variable=confirmed).pack()
+        def apply():
+            if len(points)!=2:
+                messagebox.showwarning("Eksik seçim","İki prob noktasını seçin.",parent=dialog)
+                return
+            try:
+                result=validate_probe_points(source.size,task["bbox_xyxy_pixels"],points[0],points[1],confirmed.get())
+                task["probe_points"]=result
+                feedback.set(result["warning"])
+                render()
+                dialog.destroy()
+            except ValueError as exc:
+                messagebox.showerror("Doğrulama hatası",str(exc),parent=dialog)
+        ttk.Button(dialog,text="Prob noktalarını kaydet",command=apply).pack(pady=8)
+
     def submit():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent tespitlerini yükleyin.",parent=win)
@@ -241,7 +291,7 @@ def open_guided_window(parent, image_path=None):
     controls=ttk.Frame(win)
     controls.pack(pady=10)
     for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
-                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
+                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
                           ("Sonuçları kaydet",save_results)]:
         ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
     render()
