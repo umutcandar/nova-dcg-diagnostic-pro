@@ -11,6 +11,11 @@ GUIDANCE={
  "Transistör":("Diyot (V)","Parça kodundan BJT/MOSFET tipini ve pinleri doğrula; uygun bağlantı çiftlerini iki yönde ölç."),
  "Entegre":("Direnç (Ω)","Pinleri ve besleme hattını şema/datasheet ile doğrula; tek direnç ölçümü sağlamlık testi değildir."),
  "Konnektör":("Direnç (Ω)","Enerjisiz kartta bağlantı sürekliliğini şema üzerinden doğrula."),
+ "LED":("Diyot (V)","LED polaritesini doğrula; enerjisiz ve deşarj edilmiş kartta diyot testi yap."),
+ "Anahtar":("Direnç (Ω)","Enerjiyi kes; anahtar terminallerini doğrula, açık ve kapalı konumlarda sürekliliği karşılaştır."),
+ "Header":("Direnç (Ω)","Pinleri şemayla eşleştir, enerjisiz bağlantı sürekliliğini test et."),
+ "Kristal":("Datasheet gerekli","Kristal osilatörün doğru çalıştığı basit Fluke ölçümüyle anlaşılmaz; yöntemini doğrula."),
+ "Test noktası":("Devre şeması gerekli","Test noktasının işlevi şema olmadan tahmin edilemez."),
  "Bilinmiyor":("Direnç (Ω)","Ölçümden önce komponent türünü ve pinleri doğrula.")
 }
 def instruction_for(component):
