@@ -250,18 +250,40 @@ def open_guided_window(parent, image_path=None):
             return
         dialog=tk.Toplevel(win)
         dialog.title("Pinleri fotoğrafla eşleştir")
-        dialog.geometry("580x520")
+        dialog.geometry("600x720")
         ttk.Label(dialog,text="Datasheet pin numaralarını fotoğraftaki koordinatlarla eşleştirin.",wraplength=540).pack(pady=8)
-        entries={}
-        for number,role in pins.items():
-            line=ttk.Frame(dialog)
-            line.pack(pady=3)
-            ttk.Label(line,text=f"Pin {number} ({role})",width=20).pack(side="left")
-            x=ttk.Entry(line,width=9)
-            y=ttk.Entry(line,width=9)
-            x.pack(side="left",padx=3)
-            y.pack(side="left",padx=3)
-            entries[str(number)]=(x,y)
+        preview=source.copy()
+        preview.thumbnail((530,300))
+        display_size=preview.size
+        preview_tk=ImageTk.PhotoImage(preview)
+        canvas=tk.Canvas(dialog,width=display_size[0],height=display_size[1],highlightthickness=0)
+        canvas.pack(pady=4)
+        canvas.create_image(0,0,image=preview_tk,anchor="nw")
+        canvas.image=preview_tk
+        photo_pins={}
+        numbers=[str(number) for number in pins]
+        active=tk.StringVar(value=numbers[0])
+        ttk.Label(dialog,text="Pin numarasını seçin, fotoğraftaki karşılığına tıklayın.").pack()
+        ttk.Combobox(dialog,textvariable=active,values=numbers,state="readonly").pack()
+        def pin_clicked(event):
+            try:
+                point=image_to_widget_point(event.x,event.y,source.size,display_size)
+                x1,y1,x2,y2=task["bbox_xyxy_pixels"]
+                if not (x1<=point[0]<=x2 and y1<=point[1]<=y2):
+                    raise ValueError("Pin noktası komponent kutusu dışında")
+                number=active.get()
+                photo_pins[number]=list(point)
+                canvas.delete("pin_"+number)
+                canvas.create_oval(event.x-5,event.y-5,event.x+5,event.y+5,
+                                   fill="yellow",outline="black",tags="pin_"+number)
+                canvas.create_text(event.x+10,event.y-8,text=number,anchor="w",
+                                   fill="yellow",tags="pin_"+number)
+                remaining=[n for n in numbers if n not in photo_pins]
+                if remaining:
+                    active.set(remaining[0])
+            except ValueError as exc:
+                messagebox.showwarning("Pin konumu",str(exc),parent=dialog)
+        canvas.bind("<Button-1>",pin_clicked)
         roles=sorted(set(pins.values()))
         red=tk.StringVar(value=roles[0])
         black=tk.StringVar(value=roles[-1])
@@ -274,8 +296,7 @@ def open_guided_window(parent, image_path=None):
             try:
                 if not confirm.get():
                     raise ValueError("Teknisyen onayı gerekli")
-                points={number:[float(x.get()),float(y.get())] for number,(x,y) in entries.items()}
-                proposal=suggest_probe_pair(pinout,points,red.get(),black.get())
+                proposal=suggest_probe_pair(pinout,photo_pins,red.get(),black.get())
                 result=validate_probe_points(source.size,task["bbox_xyxy_pixels"],
                     proposal["red"]["point"],proposal["black"]["point"],True)
                 task["probe_points"]=result
@@ -347,9 +368,9 @@ def open_guided_window(parent, image_path=None):
             except OSError as exc:
                 messagebox.showerror("Kaydetme hatası",str(exc),parent=win)
     controls=ttk.Frame(win)
-    controls.pack(pady=10)
-    for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
+    controls.pack(pady=10,fill="x")
+    for idx,(title,command) in enumerate([("Tespit JSON aç",import_json),("Model ile tara",scan),
                           ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Datasheet pinlerini eşleştir",map_datasheet_pins),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
-                          ("Sonuçları kaydet",save_results)]:
-        ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
+                          ("Sonuçları kaydet",save_results)]):
+        ttk.Button(controls,text=title,command=command).grid(row=idx//3,column=idx%3,padx=3,pady=3,sticky="ew")
     render()
