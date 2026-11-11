@@ -1,6 +1,6 @@
 """NOVA DCG Diagnostic Pro - offline macOS desktop prototype.
 
-Manual Fluke measurements only. No automatic component identification.
+Automatic photo-based component suggestions plus manual Fluke measurements.
 """
 import csv
 import json
@@ -43,7 +43,7 @@ def assess(mode, value):
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("NOVA DCG Diagnostic Pro V1.5")
+        self.root.title("NOVA DCG Diagnostic Pro V1.6")
         self.root.geometry("1100x760")
         self.root.minsize(880, 640)
         self.photo = ""
@@ -58,7 +58,7 @@ class App:
         self._analysis_active = False
         main = ttk.Frame(root, padding=18)
         main.pack(fill="both", expand=True)
-        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.4", font=("Helvetica", 20, "bold")).pack(anchor="w")
+        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.6", font=("Helvetica", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text="Yalnızca enerjisiz, artık gerilimi doğrulanmış düşük gerilimli kartlarda kullanın.", foreground="#a33").pack(anchor="w", pady=(4, 15))
         form = ttk.Frame(main)
         form.pack(fill="x")
