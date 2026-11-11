@@ -14,6 +14,7 @@ from photo_coordinates import image_to_widget_point
 from pin_mapping import suggest_probe_pair
 from model_inference import detect_components
 from multimeter_guides import guide_for
+from measurement_history import record_measurement, history_text
 
 def open_guided_window(parent, image_path=None):
     image_path=image_path or filedialog.askopenfilename(parent=parent,filetypes=[("Images","*.png *.jpg *.jpeg *.webp")])
@@ -386,11 +387,15 @@ def open_guided_window(parent, image_path=None):
             return
         try:
             result=evaluate(tasks[index[0]],value.get())
-            tasks[index[0]]["reading"]=float(value.get())
-            tasks[index[0]]["status"]=result["status"]
+            record_measurement(tasks[index[0]],value.get(),result["status"],result["detail"])
             feedback.set(result["status"]+": "+result["detail"])
         except ValueError as exc:
             messagebox.showerror("Ölçüm hatası",str(exc),parent=win)
+    def show_history():
+        if not tasks:
+            messagebox.showinfo("Ölçüm geçmişi","Önce komponent seçin.",parent=win)
+            return
+        messagebox.showinfo("Komponent ölçüm geçmişi",history_text(tasks[index[0]]),parent=win)
     def compare_reference():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent seçin.",parent=win)
@@ -446,6 +451,6 @@ def open_guided_window(parent, image_path=None):
     controls.pack(pady=10,fill="x")
     for idx,(title,command) in enumerate([("Tespit JSON aç",import_json),("Model ile tara",scan),
                           ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Datasheet pinlerini eşleştir",map_datasheet_pins),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
-                          ("Sonuçları kaydet",save_results)]):
+                          ("Ölçüm geçmişi",show_history),("Sonuçları kaydet",save_results)]):
         ttk.Button(controls,text=title,command=command).grid(row=idx//3,column=idx%3,padx=3,pady=3,sticky="ew")
     render()
