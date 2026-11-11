@@ -16,6 +16,11 @@ MODES = {
     "Transistör": "Diyot (V)",
     "Entegre": "Direnç (Ω)",
     "Konnektör": "Direnç (Ω)",
+    "LED": "Diyot (V)",
+    "Anahtar": "Direnç (Ω)",
+    "Header": "Direnç (Ω)",
+    "Kristal": "Datasheet gerekli",
+    "Test noktası": "Devre şeması gerekli",
 }
 
 def measurement_plan(detections):
@@ -31,7 +36,8 @@ def measurement_plan(detections):
             raise ValueError("Invalid bounding box")
         component=label if label in MODES else "Bilinmiyor"
         suggested_mode, guidance=instruction_for(component)
-        tasks.append({"id":index,"component":component,"source_label":label,
+        tasks.append({"id":index,"component":component,"source_label":detection.get("display_label", label),
+                      "model_source_label":detection.get("source_label",label),
                       "bbox_xyxy_pixels":coords,"mode":suggested_mode,
                       "instruction":guidance+" Kart enerjisiz ve deşarj edilmiş olmalı.",
                       "confidence":detection.get("confidence"),
