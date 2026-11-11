@@ -10,3 +10,14 @@
 6. In the app choose a PCB photo and a trained `.pt` weights file, then select **Model ile tara**.
 
 Results are **unverified suggestions** and are not fault diagnoses. Review every box before using it. Inference runs locally, but installing third-party dependencies may involve external downloads. Never use model output as justification for energized measurements.
+
+## Detection review pipeline (new)
+
+A compatible trained checkpoint is still required; this repository does **not** ship one.
+
+```bash
+python3 -m pip install ultralytics Pillow
+python3 detection_pipeline.py --image board.jpg --weights models/yolov8s_pcb_best.pt --output review_output --confidence 0.45
+```
+
+Outputs: `detections_review.png` (numbered bounding boxes), `detections.json` (candidate detections), and `rejected.json` (low-confidence or invalid detections). These are unverified model suggestions, not verified component identities. Open the resulting photo and manually review the labels. A low confidence threshold is a filter, not an accuracy guarantee. No benchmark has yet been run on representative NOVA DCG boards.
