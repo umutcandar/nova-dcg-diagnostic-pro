@@ -21,6 +21,7 @@ from check_planner import next_checks
 from circuit_analysis import analyze_circuit, example_circuit
 from datasheet_catalog import manufacturer_search_url, load_entry
 from guided_photo_ui import open_guided_window
+from datasheet_pdf import extract_pdf_candidates
 
 def assess(mode, value):
     if value < 0:
@@ -96,6 +97,7 @@ class App:
                 ("Olası kontrolleri sırala", self.show_findings),
                 ("Devre bağlantı analizi", self.circuit_window),
                 ("Datasheet ara", self.datasheet_window),
+                ("PDF datasheet incele", self.inspect_datasheet_pdf),
                 ("Fotoğrafı işaretle", self.annotate)]),
             ("Yapay zekâ / Veri", [
                 ("Fotoğrafta ölçüm rehberi", self.guided_photo),
@@ -112,6 +114,34 @@ class App:
 
     def guided_photo(self):
         open_guided_window(self.root, self.photo if self.photo and Path(self.photo).is_file() else None)
+
+    def inspect_datasheet_pdf(self):
+        path=filedialog.askopenfilename(parent=self.root,filetypes=[("PDF","*.pdf")])
+        if not path:
+            return
+        try:
+            result=extract_pdf_candidates(path)
+        except (ValueError,RuntimeError,OSError) as exc:
+            messagebox.showerror("PDF inceleme hatası",str(exc),parent=self.root)
+            return
+        win=tk.Toplevel(self.root)
+        win.title("Datasheet: doğrulama gerektiren aday bilgiler")
+        win.geometry("820x620")
+        box=tk.Text(win,wrap="word")
+        box.pack(fill="both",expand=True,padx=12,pady=12)
+        box.insert("end",result["warning"]+"\\n\\n")
+        for item in result["candidates"]:
+            box.insert("end",f"Sayfa {item['page']} | {item['topic']}\\n{item['excerpt']}\\n\\n")
+        if not result["candidates"]:
+            box.insert("end","Metin tabanlı aday bilgi bulunamadı. PDF taranmış görüntü olabilir.")
+        def save():
+            target=filedialog.asksaveasfilename(parent=win,defaultextension=".json",filetypes=[("JSON","*.json")])
+            if target:
+                try:
+                    Path(target).write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
+                except OSError as exc:
+                    messagebox.showerror("Kaydetme hatası",str(exc),parent=win)
+        ttk.Button(win,text="Aday bilgileri JSON kaydet",command=save).pack(pady=8)
 
     def datasheet_window(self):
         """Technician chooses and verifies source; never fabricate ratings."""
