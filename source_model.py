@@ -11,6 +11,11 @@ SOURCE_TO_NOVA = {
     "Diode":"Diyot",
     "IC":"Entegre",
     "Connector":"Konnektör",
+    "LED":"LED",
+    "Switch/Button":"Anahtar",
+    "Header":"Header",
+    "Crystal":"Kristal",
+    "Debug/TP":"Test noktası",
 }
 def adapt_source_classes(names):
     actual=[names[i] for i in range(len(names))] if isinstance(names,dict) else list(names)
