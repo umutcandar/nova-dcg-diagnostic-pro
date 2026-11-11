@@ -21,6 +21,7 @@ def detect_components(image_path, weights_path, confidence=0.4):
     model=YOLO(str(weights))
     result=model.predict(source=str(image),conf=confidence,verbose=False)[0]
     names=result.names
+    validate_model_classes(names)
     predictions=[]
     for box in result.boxes:
         class_id=int(box.cls[0])
