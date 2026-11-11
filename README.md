@@ -74,3 +74,8 @@ Kaynak modelle denemek için: kaynak depodan ağırlıkları indirip NOVA arayü
 ## V1.1 - Mac olmadan kalite kontrol
 
 GitHub Actions iş akışı her push ve pull request sonrası Python kaynak sözdizimini (`preflight.py`) ve `test_*.py` birim testlerini çalıştıracak şekilde eklendi. `python preflight.py` ve `python -m unittest discover -p 'test_*.py' -v` komutları yerelde de kullanılabilir. Bu değişiklik **GitHub Actions'ın başarıyla çalıştığı anlamına gelmez**; iş akışı sonuçları ayrıca kontrol edilmelidir. M1 Mac ve gerçek model çıkarımı testleri sonraya bırakıldı.
+
+
+## Fotoğraftan yönlendirmeli ölçüm hedefi (V1.5 hazırlık)
+
+İstenen iş akışı: PCB fotoğrafı yükle → eğitilmiş modelle komponent bölgelerini öner → görüntü üzerinde kutu çiz → teknisyen komponenti ve prob yerlerini doğrulasın → Fluke ölçümünü elle girsin → sonucu ihtiyatlı yorumla → sıradaki ölçümü öner. `guided_measurement.py` ilk görev oluşturma ve değerlendirme çekirdeğidir. **Görüntü üstü işaretleme, güvenilir pin/prob konumu, otomatik sıra belirleme ve GUI entegrasyonu henüz tamamlanmadı.** Model ağırlıkları ve gerçek fotoğraf testleri de yoktur. Tek fotoğraf veya tek direnç ölçümüyle sağlam/bozuk kararı verilemez; şema, veri sayfası ve devre içi paralel yollar dikkate alınmalıdır.
