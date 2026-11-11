@@ -8,6 +8,7 @@ import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from PIL import Image, ImageTk, ImageOps
 from guide import GUIDES, steps_for
 from report import create_pdf
 from diagnosis import prioritize
@@ -43,6 +44,7 @@ class App:
         self.root.geometry("1100x760")
         self.root.minsize(880, 640)
         self.photo = ""
+        self.photo_preview_image = None
         self.annotated_photo = ""
         self.entries = []
         main = ttk.Frame(root, padding=18)
@@ -80,10 +82,24 @@ class App:
         self.component.current(0)
         self.component.pack(side="left", padx=8)
         ttk.Button(guide_row, text="Ölçüm adımlarını göster", command=self.show_guide).pack(side="left")
-        self.table = ttk.Treeview(main, columns=("point","mode","value","note"), show="headings", height=11)
-        for key, label, width in [("point","Test noktası",115),("mode","Mod",100),("value","Değer",85),("note","Ön değerlendirme",470)]:
+        work_area = ttk.Frame(main)
+        work_area.pack(fill="both", expand=True)
+        preview_frame = ttk.LabelFrame(work_area, text="Kart fotoğrafı önizleme", padding=6)
+        preview_frame.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        self.photo_preview = ttk.Label(preview_frame, text="Kart fotoğrafı seçerek önizleme açın.",
+                                       anchor="center", justify="center", cursor="hand2")
+        self.photo_preview.pack(fill="both", expand=True)
+        self.photo_preview.bind("<Button-1>", lambda _event: self.guided_photo())
+        ttk.Button(preview_frame, text="Fotoğraf üzerinde komponent ölçümü",
+                   command=self.guided_photo).pack(fill="x", pady=(6, 0))
+        measurements_frame = ttk.LabelFrame(work_area, text="Manuel ölçüm kayıtları", padding=4)
+        measurements_frame.pack(side="right", fill="both", expand=True)
+        self.table = ttk.Treeview(measurements_frame, columns=("point","mode","value","note"),
+                                  show="headings", height=11)
+        for key, label, width in [("point","Test noktası",100),("mode","Mod",95),
+                                  ("value","Değer",80),("note","Ön değerlendirme",360)]:
             self.table.heading(key, text=label)
-            self.table.column(key, width=width)
+            self.table.column(key, width=width, stretch=True)
         self.table.pack(fill="both", expand=True)
         tabs = ttk.Notebook(main)
         tabs.pack(fill="x", pady=10)
@@ -393,11 +409,27 @@ class App:
             messagebox.showerror("PDF oluşturulamadı", str(exc))
 
     def pick_photo(self):
-        path = filedialog.askopenfilename(filetypes=[("Fotoğraflar","*.png *.jpg *.jpeg *.heic"),("Tüm dosyalar","*.*")])
-        if path:
-            self.photo = path
-            self.annotated_photo = ""
-            self.photo_label.config(text=Path(path).name[:28])
+        path = filedialog.askopenfilename(
+            parent=self.root,
+            filetypes=[("Fotoğraflar", "*.png *.jpg *.jpeg *.webp"), ("Tüm dosyalar", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            with Image.open(path) as opened:
+                image = ImageOps.exif_transpose(opened).convert("RGB")
+            image.thumbnail((520, 330), Image.Resampling.LANCZOS)
+            preview = ImageTk.PhotoImage(image)
+        except (OSError, ValueError, tk.TclError) as exc:
+            messagebox.showerror("Fotoğraf açılamadı",
+                                 "PNG, JPEG veya WebP fotoğrafı seçin. Ayrıntı: " + str(exc),
+                                 parent=self.root)
+            return
+        self.photo = path
+        self.annotated_photo = ""
+        self.photo_preview_image = preview
+        self.photo_preview.configure(image=preview, text="")
+        self.photo_label.config(text=Path(path).name[:28])
 
     def add(self):
         try:
