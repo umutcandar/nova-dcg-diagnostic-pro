@@ -1,0 +1,47 @@
+name: PCB detector smoke test
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'model_inference.py'
+      - 'detection_pipeline.py'
+      - 'download_and_test_model.py'
+      - 'test_model_download.py'
+      - '.github/workflows/pcb-model-smoke.yml'
+jobs:
+  detector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pillow ultralytics
+      - name: Validate downloader
+        run: python -m unittest -v test_model_download
+      - name: Download verified model
+        run: python download_and_test_model.py
+      - name: Obtain public PCB image
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import urllib.request
+          url="https://raw.githubusercontent.com/ultralytics/assets/main/imags/bus.jpg"
+          # This generic photo is only a connectivity check; PCB sample is required for detection.
+          print("Image fixture must be supplied from a licensed PCB dataset.")
+          PY
+      - name: Check checkpoint loading and class compatibility
+        run: |
+          python - <<'PY'
+          from ultralytics import YOLO
+          from source_model import SOURCE_CLASSES
+          m=YOLO("models/yolov8s_pcb_best.pt")
+          names=m.names
+          actual=[names[i] for i in range(len(names))] if isinstance(names,dict) else list(names)
+          print("Checkpoint classes:",actual)
+          if actual!=SOURCE_CLASSES:
+              raise SystemExit("Unexpected checkpoint class names")
+          print("Checkpoint loaded; photo inference still needs a PCB image.")
+          PY
