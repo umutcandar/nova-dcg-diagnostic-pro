@@ -69,3 +69,8 @@ Testler: `python3 -m unittest test_guide.py test_diagnosis.py test_component_lab
 Kaynak: [wangshnegqi/pcb-component-detection-dataset-yolo](https://github.com/wangshnegqi/pcb-component-detection-dataset-yolo). Kaynağın `dataset/data.yaml` dosyasında 10 sınıf bulunduğu doğrulandı. `source_model.py` bunları NOVA'nın mevcut sınıflarıyla **yalnızca eşleşenler için** eşler; LED, Header, Crystal vb. farklı sınıfları 'Diğer' olarak korur. `model_inference.py` artık bu kaynağın eğitilmiş `models/yolov8s_pcb_best.pt` ağırlıklarını, dosya kullanıcı tarafından sağlandığında tanıyabilir. Model veya veri seti henüz NOVA deposuna kopyalanmadı; ilk eğitim ve gerçek kart doğruluk testi yapılmadı. Kaynağın README'sinde görüntü/etiketler CC BY 4.0, ağırlıklar Apache 2.0 olarak belirtiliyor. Atıf ve lisans dosyalarını inceleyin.
 
 Kaynak modelle denemek için: kaynak depodan ağırlıkları indirip NOVA arayüzünde **Model ile tara** düğmesiyle seçin. Test: `python3 -m unittest test_source_model.py test_model_inference.py`.
+
+
+## V1.1 - Mac olmadan kalite kontrol
+
+GitHub Actions iş akışı her push ve pull request sonrası Python kaynak sözdizimini (`preflight.py`) ve `test_*.py` birim testlerini çalıştıracak şekilde eklendi. `python preflight.py` ve `python -m unittest discover -p 'test_*.py' -v` komutları yerelde de kullanılabilir. Bu değişiklik **GitHub Actions'ın başarıyla çalıştığı anlamına gelmez**; iş akışı sonuçları ayrıca kontrol edilmelidir. M1 Mac ve gerçek model çıkarımı testleri sonraya bırakıldı.
