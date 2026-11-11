@@ -43,3 +43,10 @@ Mac M1 üzerinde uygulama açılışı ve PDF çıktı testi henüz yapılmadı.
 **Olası kontrolleri sırala** düğmesi, düşük direnç ve 0 V diyot okuması gibi ölçümler için kontrol önerileri gösterir. Bu **kural tabanlı** özelliktir; yapay zekâ veya kesin komponent teşhisi değildir. Uyarı çıkmaması kartın sağlam olduğunu göstermez. Test komutu: `python3 -m unittest test_guide.py test_diagnosis.py`.
 
 Fotoğraftan otomatik komponent tanıma henüz geliştirilmedi; bunun için doğrulanmış görüntü veri seti ve model değerlendirmesi gerekecek.
+
+
+## V0.6 - görüntü analizi için veri hazırlama
+
+**Komponent etiketle** düğmesiyle kart fotoğrafında direnç, kondansatör, diyot, entegre, transistör, bobin ve konnektörleri elle dikdörtgen içine alın. Etiketleri, görüntü boyutuna göre normalize edilmiş koordinatlarla JSON olarak dışa aktarın. Bu aşama gelecekteki bir görüntü tanıma modeline veri hazırlamak içindir; **otomatik komponent algılama, OCR veya eğitilmiş model henüz bulunmuyor**. Etiketler doğrulanmamış kullanıcı girişidir.
+
+Birim testleri: `python3 -m unittest test_guide.py test_diagnosis.py test_component_labeler.py`.
