@@ -14,6 +14,7 @@ from diagnosis import prioritize
 from annotator import mark_photo
 from component_labeler import launch_labeler
 from dataset import export_yolo
+from model_inference import detect_components
 
 def assess(mode, value):
     if value < 0:
@@ -72,6 +73,7 @@ class App:
         self.table.pack(fill="both", expand=True)
         buttons = ttk.Frame(main)
         buttons.pack(fill="x", pady=12)
+        ttk.Button(buttons, text="Model ile tara", command=self.scan_model).pack(side="left", padx=4)
         ttk.Button(buttons, text="Etiketleri YOLO aktar", command=self.export_labels).pack(side="left", padx=4)
         ttk.Button(buttons, text="Komponent etiketle", command=self.label_components).pack(side="left", padx=4)
         ttk.Button(buttons, text="Fotoğrafı işaretle", command=self.annotate).pack(side="left", padx=4)
@@ -102,6 +104,32 @@ class App:
         box = tk.Text(win, wrap="word", padx=12, pady=12)
         box.pack(fill="both", expand=True)
         box.insert("1.0", content)
+        box.configure(state="disabled")
+
+    def scan_model(self):
+        if not self.photo:
+            messagebox.showinfo("Fotoğraf gerekli", "Önce kart fotoğrafı seçin.")
+            return
+        weights = filedialog.askopenfilename(
+            title="Eğitilmiş YOLO ağırlık dosyasını seç", filetypes=[("YOLO model", "*.pt")])
+        if not weights:
+            return
+        try:
+            results = detect_components(self.photo, weights)
+        except Exception as exc:
+            messagebox.showerror("Model çalıştırılamadı", str(exc))
+            return
+        win = tk.Toplevel(self.root)
+        win.title("Model önerileri - doğrulanmadı")
+        win.geometry("760x430")
+        box = tk.Text(win, wrap="word", padx=12, pady=12)
+        box.pack(fill="both", expand=True)
+        lines = ["Model çıktıları doğrulanmamıştır. Bunlar arıza teşhisi değildir.", ""]
+        for i, item in enumerate(results, 1):
+            lines.append(f"{i}. {item['label']} | güven: {item['confidence']:.1%} | kutu: {item['bbox_xyxy_pixels']}")
+        if not results:
+            lines.append("Belirlenen eşikte komponent bulunamadı.")
+        box.insert("1.0", "\\n".join(lines))
         box.configure(state="disabled")
 
     def export_labels(self):
