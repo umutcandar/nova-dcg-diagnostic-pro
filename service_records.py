@@ -10,7 +10,7 @@ def safe_job_id(value):
         raise ValueError("Job ID must contain 1-64 letters, digits, underscore or hyphen")
     return value
 
-def save_job(folder, job_id, device, notes="", measurements=None):
+def save_job(folder, job_id, device, notes="", measurements=None, model="", fault_description=""):
     job_id=safe_job_id(job_id)
     if not str(device).strip():
         raise ValueError("Device name required")
@@ -22,7 +22,8 @@ def save_job(folder, job_id, device, notes="", measurements=None):
     root.mkdir(parents=True,exist_ok=True)
     path=root/(job_id+".json")
     record={"schema_version":1,"job_id":job_id,"device":str(device).strip(),
-            "notes":str(notes),"measurements":measurements,
+            "notes":str(notes),"model":str(model).strip(),
+            "fault_description":str(fault_description).strip(),"measurements":measurements,
             "updated_at":datetime.now(timezone.utc).isoformat()}
     tmp=root/(job_id+".tmp")
     try:
