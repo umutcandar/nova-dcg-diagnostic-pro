@@ -17,6 +17,7 @@ from dataset import export_yolo
 from model_inference import detect_components
 from service_records import save_job, load_job, list_jobs
 from component_library import component_info
+from check_planner import next_checks
 
 def assess(mode, value):
     if value < 0:
@@ -174,9 +175,12 @@ class App:
             messagebox.showinfo("Ölçüm yok", "Önce en az bir ölçüm girin.")
             return
         findings = prioritize(self.entries)
+        planned = next_checks(self.entries, self.fault_description.get())
         content = "\\n\\n".join(
             f"{i}. {f.title} [{f.priority}]\\n{f.reason}\\nSonraki adım: {f.next_step}"
             for i, f in enumerate(findings, 1))
+        content += "\\n\\nArıza açıklamasına göre ek kontroller:\\n" + "\\n".join(
+            "- " + item["title"] + ": " + item["reason"] for item in planned)
         win = tk.Toplevel(self.root)
         win.title("Ölçüme dayalı kontrol öncelikleri")
         win.geometry("740x430")
