@@ -17,7 +17,7 @@ from multimeter_guides import guide_for
 from measurement_history import record_measurement, history_text
 from fault_review import review_queue
 
-def open_guided_window(parent, image_path=None):
+def open_guided_window(parent, image_path=None, initial_detections=None):
     image_path=image_path or filedialog.askopenfilename(parent=parent,filetypes=[("Images","*.png *.jpg *.jpeg *.webp")])
     if not image_path:
         return
@@ -487,4 +487,10 @@ def open_guided_window(parent, image_path=None):
                           ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Datasheet pinlerini eşleştir",map_datasheet_pins),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
                           ("Ölçüm geçmişi",show_history),("Arıza analizi",show_fault_review),("Sonuçları kaydet",save_results)]):
         ttk.Button(controls,text=title,command=command).grid(row=idx//3,column=idx%3,padx=3,pady=3,sticky="ew")
-    render()
+    if initial_detections is not None:
+        set_detections(initial_detections)
+        if not initial_detections:
+            status.set("Model görüntüde komponent adayı bulamadı. Farklı açıda/netlikte fotoğraf deneyin.")
+    else:
+        render()
+    return win
