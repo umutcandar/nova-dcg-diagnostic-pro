@@ -25,7 +25,14 @@ GUIDES.update({
     "transistor": Guide("Transistör","Diyot testi","Kart enerjisiz ve deşarj edilmiş olmalı.","B/E/C pinlerini doğrulanmış parça kodu ve datasheet ile eşleyin.","BJT tipi ve bağlantılar bilinmeden aralık verilemez.","İleri ve ters yön okumalarını datasheet'e göre karşılaştırın."),
     "connector": Guide("Konnektör","Süreklilik / Ω","Kart enerjisiz olmalı.","İlgili bağlantının uç noktalarını şemadan doğrulayın.","Hat uzunluğu ve bağlanan devre bilinmeden sabit sınır yoktur.","Kablo ve lehim sürekliliğini kontrol edin."),
 })
-ALIASES={"direnç":"resistor","kondansatör":"capacitor","kapasitör":"capacitor","diyot":"diode","entegre":"ic","bobin":"inductor","transistör":"transistor","konnektör":"connector"}
+GUIDES.update({
+    "led": Guide("LED","Diyot testi","Enerjiyi kesin ve artık gerilimi kontrol edin.","Anot ve katodu işaret veya datasheet ile doğrulayın.","İleri gerilim rengi ve modele göre değişir; sabit eşik kullanılmaz.","Ters yönü de kontrol edin ve gerekiyorsa devreden ayırın."),
+    "switch": Guide("Anahtar","Süreklilik / Ω","Kart enerjisiz olmalı.","Anahtarın ilgili kontaklarını doğrulayın.","Açık ve kapalı konum arasındaki değişim kontrol edilir; paralel yollar yanıltabilir.","Kontak ve lehimleri inceleyin."),
+    "header": Guide("Header","Süreklilik / Ω","Kart enerjisiz olmalı.","Şema ile karşılıklı pinleri doğrulayın.","Pin işlevi bilinmeden beklenti verilemez.","Konnektör ve kablo sürekliliğini kontrol edin."),
+    "crystal": Guide("Kristal","Datasheet ve uygun cihaz gerekli","Kart enerjisizken sadece görsel kontrol uygulanabilir.","Rastgele pinler arasında ölçüm yapmayın.","Basit direnç testi osilatörün frekansını veya sağlamlığını kanıtlamaz.","Parça kodunu ve uygun test yöntemini doğrulayın."),
+    "testpoint": Guide("Test noktası","Şema gerekli","Güvenli ölçüm koşulları devre şemasına göre doğrulanmalı.","Test noktası ile bağlı olduğu net şemada doğrulanmalı.","Tek fotoğrafa göre beklenen voltaj belirlenemez.","Devre şeması ve servis prosedürünü inceleyin."),
+})
+ALIASES={"direnç":"resistor","kondansatör":"capacitor","kapasitör":"capacitor","diyot":"diode","entegre":"ic","bobin":"inductor","transistör":"transistor","konnektör":"connector","anahtar":"switch","kristal":"crystal","test noktası":"testpoint"}
 def guide_for(component, nominal=None, tolerance_percent=None, unit=None):
     key=ALIASES.get(component.strip().lower(),component.strip().lower())
     if key not in GUIDES:
