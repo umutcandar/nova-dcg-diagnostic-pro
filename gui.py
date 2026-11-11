@@ -4,11 +4,13 @@ Manual Fluke measurements only. No automatic component identification.
 """
 import csv
 import json
+import queue
+import threading
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from PIL import Image, ImageTk, ImageOps
+from PIL import Image, ImageTk, ImageOps, ImageDraw
 from guide import GUIDES, steps_for
 from report import create_pdf
 from diagnosis import prioritize
@@ -22,6 +24,7 @@ from check_planner import next_checks
 from circuit_analysis import analyze_circuit, example_circuit
 from datasheet_catalog import manufacturer_search_url, load_entry
 from guided_photo_ui import open_guided_window
+from auto_detector import automatic_detect
 from datasheet_pdf import extract_pdf_candidates
 
 def assess(mode, value):
@@ -40,13 +43,19 @@ def assess(mode, value):
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("NOVA DCG Diagnostic Pro V1.4")
+        self.root.title("NOVA DCG Diagnostic Pro V1.5")
         self.root.geometry("1100x760")
         self.root.minsize(880, 640)
         self.photo = ""
         self.photo_preview_image = None
         self.annotated_photo = ""
         self.entries = []
+        self.auto_detections = []
+        self.auto_photo = None
+        self.analysis_status = tk.StringVar(value="Fotoğraf seçildiğinde otomatik tarama başlayacak.")
+        self._analysis_queue = queue.Queue()
+        self._analysis_sequence = 0
+        self._analysis_active = False
         main = ttk.Frame(root, padding=18)
         main.pack(fill="both", expand=True)
         ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.4", font=("Helvetica", 20, "bold")).pack(anchor="w")
@@ -90,7 +99,11 @@ class App:
                                        anchor="center", justify="center", cursor="hand2")
         self.photo_preview.pack(fill="both", expand=True)
         self.photo_preview.bind("<Button-1>", lambda _event: self.guided_photo())
-        ttk.Button(preview_frame, text="Fotoğraf üzerinde komponent ölçümü",
+        ttk.Label(preview_frame, textvariable=self.analysis_status, wraplength=500,
+                  justify="left").pack(fill="x", pady=(6, 0))
+        self.analysis_bar = ttk.Progressbar(preview_frame, mode="indeterminate")
+        self.analysis_bar.pack(fill="x", pady=(4, 0))
+        ttk.Button(preview_frame, text="Komponentlerin ölçüm rehberini aç",
                    command=self.guided_photo).pack(fill="x", pady=(6, 0))
         measurements_frame = ttk.LabelFrame(work_area, text="Manuel ölçüm kayıtları", padding=4)
         measurements_frame.pack(side="right", fill="both", expand=True)
@@ -129,7 +142,14 @@ class App:
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
 
     def guided_photo(self):
-        open_guided_window(self.root, self.photo if self.photo and Path(self.photo).is_file() else None)
+        if not self.photo or not Path(self.photo).is_file():
+            messagebox.showinfo("Fotoğraf gerekli", "Önce kart fotoğrafı seçin.", parent=self.root)
+            return
+        if self._analysis_active:
+            self.analysis_status.set("Otomatik tarama devam ediyor. Bittiğinde ölçüm ekranı açılacak.")
+            return
+        items = self.auto_detections if self.auto_photo == self.photo else None
+        open_guided_window(self.root, self.photo, initial_detections=items)
 
     def inspect_datasheet_pdf(self):
         path=filedialog.askopenfilename(parent=self.root,filetypes=[("PDF","*.pdf")])
@@ -250,6 +270,13 @@ class App:
         ttk.Button(actions,text="JSON kaydet",command=save_json).pack(side="left",padx=4)
 
     def show_component_info(self):
+        if self.photo:
+            if self._analysis_active:
+                self.analysis_status.set("Fotoğraf analiz ediliyor; sonuçlar otomatik gösterilecek.")
+                return
+            if self.auto_photo == self.photo:
+                self.guided_photo()
+                return
         name=self.component.get()
         try:
             info=component_info(name)
@@ -430,6 +457,82 @@ class App:
         self.photo_preview_image = preview
         self.photo_preview.configure(image=preview, text="")
         self.photo_label.config(text=Path(path).name[:28])
+        self.start_auto_analysis()
+
+    def draw_detection_preview(self):
+        if not self.photo:
+            return
+        try:
+            with Image.open(self.photo) as opened:
+                image = ImageOps.exif_transpose(opened).convert("RGB")
+            if self.auto_photo == self.photo and self.auto_detections:
+                draw = ImageDraw.Draw(image)
+                thickness = max(2, image.width // 270)
+                for detection in self.auto_detections:
+                    x1,y1,x2,y2 = detection["bbox_xyxy_pixels"]
+                    draw.rectangle((x1,y1,x2,y2), outline="#f4b400", width=thickness)
+                    label = detection.get("label", "Bilinmiyor")
+                    confidence = detection.get("confidence")
+                    suffix = f" {confidence:.0%}" if isinstance(confidence,(int,float)) else ""
+                    draw.text((x1,max(0,y1-14)),label+suffix,fill="#ffffff",stroke_width=2,stroke_fill="#202020")
+            image.thumbnail((520,330),Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(image)
+            self.photo_preview_image = photo
+            self.photo_preview.configure(image=photo,text="")
+        except (OSError, ValueError, tk.TclError) as exc:
+            self.analysis_status.set("Önizleme oluşturulamadı: "+str(exc))
+
+    def start_auto_analysis(self):
+        """Download verified model if needed, run local AI outside Tk's UI thread."""
+        self._analysis_sequence += 1
+        sequence = self._analysis_sequence
+        image_path = self.photo
+        self.auto_photo = None
+        self.auto_detections = []
+        self._analysis_active = True
+        self.analysis_status.set("Model ve bağımlılıklar kontrol ediliyor...")
+        self.analysis_bar.start(12)
+        def worker():
+            try:
+                result = automatic_detect(
+                    image_path,
+                    progress=lambda message: self._analysis_queue.put((sequence,"progress",message))
+                )
+                self._analysis_queue.put((sequence,"result",result))
+            except Exception as exc:
+                self._analysis_queue.put((sequence,"error",str(exc)))
+        threading.Thread(target=worker, daemon=True).start()
+        self.root.after(150,self.poll_auto_analysis)
+
+    def poll_auto_analysis(self):
+        try:
+            while True:
+                sequence,kind,payload = self._analysis_queue.get_nowait()
+                if sequence != self._analysis_sequence:
+                    continue
+                if kind == "progress":
+                    self.analysis_status.set(payload)
+                elif kind == "error":
+                    self._analysis_active = False
+                    self.analysis_bar.stop()
+                    self.analysis_status.set("Otomatik analiz başlatılamadı: " + payload)
+                elif kind == "result":
+                    self._analysis_active = False
+                    self.analysis_bar.stop()
+                    self.auto_photo = self.photo
+                    self.auto_detections = payload
+                    self.draw_detection_preview()
+                    self.analysis_status.set(
+                        f"Tarama tamamlandı: {len(payload)} komponent adayı. "
+                        + ("Sarı kutular model önerisidir; parça türü doğrulanmalıdır."
+                           if payload else "Model komponent bulamadı; farklı bir fotoğraf deneyin.")
+                    )
+                    if payload:
+                        self.root.after(100,self.guided_photo)
+        except queue.Empty:
+            pass
+        if self._analysis_active:
+            self.root.after(150,self.poll_auto_analysis)
 
     def add(self):
         try:
