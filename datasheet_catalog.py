@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 def normalize_part_number(value):
     part=str(value).strip().upper()
-    if not part or len(part)>80 or not all(c.isalnum() or c in "-_./" for c in part):
+    if not part or len(part)>80 or not all(c.isalnum() or c in "-_." for c in part):
         raise ValueError("Invalid part number")
     return part
 
@@ -29,7 +29,7 @@ def save_verified_entry(folder, part_number, manufacturer, source_url, notes="",
           "measurement_limits":None}
     root=Path(folder)
     root.mkdir(parents=True,exist_ok=True)
-    path=root/(part.replace("/","_")+".json")
+    path=root/(part+".json")
     path.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
     return path
 
