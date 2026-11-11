@@ -22,7 +22,7 @@ def extract_pdf_candidates(path,part_number=None,max_pages=30):
     matches=[]
     for page_number,page in enumerate(reader.pages[:max_pages],1):
         content=page.extract_text() or ""
-        lines=[re.sub(r"\\s+"," ",line).strip() for line in content.splitlines()]
+        lines=[re.sub(r"\s+"," ",line).strip() for line in content.splitlines()]
         for idx,line in enumerate(lines):
             if not line:
                 continue
