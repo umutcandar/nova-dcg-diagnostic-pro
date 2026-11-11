@@ -13,6 +13,7 @@ from probe_points import validate_probe_points
 from photo_coordinates import image_to_widget_point
 from pin_mapping import suggest_probe_pair
 from model_inference import detect_components
+from multimeter_guides import guide_for
 
 def open_guided_window(parent, image_path=None):
     image_path=image_path or filedialog.askopenfilename(parent=parent,filetypes=[("Images","*.png *.jpg *.jpeg *.webp")])
@@ -30,8 +31,49 @@ def open_guided_window(parent, image_path=None):
     tasks=[]
     detections=[]
     index=[0]
-    photo=tk.Label(win)
-    photo.pack(fill="both",expand=True,padx=10,pady=8)
+    workspace=ttk.Frame(win)
+    workspace.pack(fill="both",expand=True,padx=10,pady=8)
+    photo=tk.Label(workspace)
+    photo.pack(side="left",fill="both",expand=True)
+    guide_panel=ttk.LabelFrame(workspace,text="Fluke ölçüm rehberi",padding=10)
+    guide_panel.pack(side="right",fill="y",padx=(10,0))
+    guide_fields={}
+    for heading in ("Komponent","Fluke modu","Hazırlık","Prob yerleri","Beklenen değer","Sonraki adım"):
+        ttk.Label(guide_panel,text=heading,font=("TkDefaultFont",10,"bold")).pack(anchor="w",pady=(8,1))
+        var=tk.StringVar(value="Komponent seçilmedi")
+        ttk.Label(guide_panel,textvariable=var,wraplength=290,justify="left").pack(anchor="w")
+        guide_fields[heading]=var
+    nominal=tk.StringVar()
+    tolerance=tk.StringVar()
+    unit=tk.StringVar()
+    for title,var in (("Doğrulanmış nominal değer",nominal),("Tolerans (%)",tolerance),("Birim (Ω, µF vb.)",unit)):
+        ttk.Label(guide_panel,text=title).pack(anchor="w",pady=(7,0))
+        ttk.Entry(guide_panel,textvariable=var,width=20).pack(anchor="w")
+    def refresh_guide():
+        if not tasks:
+            return
+        task=tasks[index[0]]
+        args={}
+        if nominal.get().strip() and tolerance.get().strip() and unit.get().strip():
+            try:
+                args=dict(nominal=float(nominal.get().replace(",",".")),tolerance_percent=float(tolerance.get().replace(",",".")),unit=unit.get().strip())
+            except ValueError:
+                messagebox.showwarning("Değer hatası","Nominal ve tolerans sayısal olmalı.",parent=win)
+                return
+        try:
+            g=guide_for(str(task.get("component","")),**args)
+        except ValueError as exc:
+            messagebox.showwarning("Referans hatası",str(exc),parent=win)
+            return
+        if "status" in g:
+            guide_fields["Komponent"].set(str(task.get("component","Bilinmiyor")))
+            for heading in ("Fluke modu","Hazırlık","Prob yerleri","Beklenen değer","Sonraki adım"):
+                guide_fields[heading].set(g["message"])
+            return
+        for heading,key in (("Komponent","component"),("Fluke modu","mode"),("Hazırlık","setup"),("Prob yerleri","probes"),("Beklenen değer","expected"),("Sonraki adım","next_step")):
+            guide_fields[heading].set(g[key])
+    ttk.Button(guide_panel,text="Beklenen aralığı hesapla",command=refresh_guide).pack(anchor="w",pady=10)
+    ttk.Label(guide_panel,text="Sayısal referansı yalnızca doğrulanmış parça bilgisiyle girin.\nDevre içi ölçüm kesin sağlamlık kanıtı değildir.",wraplength=290).pack(anchor="w")
     status=tk.StringVar(value="Önce tespit JSON dosyası yükleyin veya eğitilmiş model seçin.")
     ttk.Label(win,textvariable=status,wraplength=920).pack(padx=10,pady=5)
     ttk.Label(win,text="Prob konumları otomatik doğrulanmaz. Kart enerjisiz ve deşarj edilmiş olmalı.").pack(padx=10)
@@ -57,10 +99,11 @@ def open_guided_window(parent, image_path=None):
                     draw.text((px+r+2,py-r),name.upper(),fill=color)
             draw.text((x1,max(0,y1-18)),str(task["id"])+" "+task["source_label"],fill="#ff2424")
             status.set(f"{index[0]+1}/{len(tasks)} | {task['source_label']} | Mod: {task['mode']} | {task['instruction']}")
-        img.thumbnail((920,540))
+        img.thumbnail((640,540))
         picture=ImageTk.PhotoImage(img)
         photo.configure(image=picture)
         photo.image=picture
+        refresh_guide()
     def set_detections(items):
         nonlocal tasks, detections
         try:
@@ -356,6 +399,9 @@ def open_guided_window(parent, image_path=None):
             return
         index[0]=(index[0]+1)%len(tasks)
         value.set("")
+        nominal.set("")
+        tolerance.set("")
+        unit.set("")
         feedback.set("")
         render()
     def save_results():
