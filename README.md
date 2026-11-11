@@ -62,3 +62,10 @@ Testler: `python3 -m unittest test_guide.py test_diagnosis.py test_component_lab
 ## V0.9 - veri seti hazırlama ve yerel eğitim
 
 `prepare_dataset.py`, doğrulanmış manuel etiketlerden aynı kartı farklı veri kümelerine dağıtmadan train/val/test klasörleri ve YOLO `data.yaml` oluşturur. JSON dosyalarına aynı fiziksel karta ait tüm fotoğraflarda aynı `board_id` alanı eklenmelidir. `train_model.py`, kullanıcı tarafından sağlanan yerel temel model ağırlıklarıyla isteğe bağlı eğitim başlatabilir. **Veri seti, eğitilmiş model ve doğrulanmış performans sonuçları henüz yoktur.** Ayrıntılar: `DATA_COLLECTION.md`.
+
+
+## V1.0 - açık PCB modeliyle ilk entegrasyon
+
+Kaynak: [wangshnegqi/pcb-component-detection-dataset-yolo](https://github.com/wangshnegqi/pcb-component-detection-dataset-yolo). Kaynağın `dataset/data.yaml` dosyasında 10 sınıf bulunduğu doğrulandı. `source_model.py` bunları NOVA'nın mevcut sınıflarıyla **yalnızca eşleşenler için** eşler; LED, Header, Crystal vb. farklı sınıfları 'Diğer' olarak korur. `model_inference.py` artık bu kaynağın eğitilmiş `models/yolov8s_pcb_best.pt` ağırlıklarını, dosya kullanıcı tarafından sağlandığında tanıyabilir. Model veya veri seti henüz NOVA deposuna kopyalanmadı; ilk eğitim ve gerçek kart doğruluk testi yapılmadı. Kaynağın README'sinde görüntü/etiketler CC BY 4.0, ağırlıklar Apache 2.0 olarak belirtiliyor. Atıf ve lisans dosyalarını inceleyin.
+
+Kaynak modelle denemek için: kaynak depodan ağırlıkları indirip NOVA arayüzünde **Model ile tara** düğmesiyle seçin. Test: `python3 -m unittest test_source_model.py test_model_inference.py`.
