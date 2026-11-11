@@ -1,2 +1,4 @@
 Pillow>=10,<13
 reportlab>=4,<5
+# Trained PCB detector; first installation may take time on Apple Silicon.
+ultralytics>=8.3,<9
