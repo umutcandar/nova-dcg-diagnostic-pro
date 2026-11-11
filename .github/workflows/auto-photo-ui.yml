@@ -1,0 +1,29 @@
+name: Automatic PCB photo GUI smoke test
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'gui.py'
+      - 'guided_photo_ui.py'
+      - 'auto_detector.py'
+      - 'test_gui_auto.py'
+      - '.github/workflows/auto-photo-ui.yml'
+jobs:
+  photo-gui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Tk test display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb python3-tk
+      - name: Install UI dependencies
+        run: python -m pip install "Pillow>=10,<13"
+      - name: Compile Python
+        run: python -m compileall -q .
+      - name: Test photo-triggered analysis and failure messaging
+        run: xvfb-run -a python -m unittest -v test_gui_auto
