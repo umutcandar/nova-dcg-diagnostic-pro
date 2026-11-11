@@ -8,6 +8,7 @@ from guided_measurement import measurement_plan, evaluate
 from detection_review import review_detections, ALLOWED
 from component_ocr import read_markings
 from datasheet_catalog import manufacturer_search_url
+from measurement_reference import compare
 from model_inference import detect_components
 
 def open_guided_window(parent, image_path=None):
@@ -150,6 +151,38 @@ def open_guided_window(parent, image_path=None):
             feedback.set(result["status"]+": "+result["detail"])
         except ValueError as exc:
             messagebox.showerror("Ölçüm hatası",str(exc),parent=win)
+    def compare_reference():
+        if not tasks:
+            messagebox.showinfo("Tespit gerekli","Önce komponent seçin.",parent=win)
+            return
+        task=tasks[index[0]]
+        if not task.get("part_number_verified_by_user"):
+            messagebox.showinfo("Parça kodu","Önce Yazıyı oku ile parça kodunu doğrulayın.",parent=win)
+            return
+        path=filedialog.askopenfilename(parent=win,title="Doğrulanmış referans JSON seç",filetypes=[("JSON","*.json")])
+        if not path:
+            return
+        try:
+            spec=json.loads(Path(path).read_text(encoding="utf-8"))
+            state=tk.Toplevel(win)
+            state.title("Ölçüm koşulu")
+            ttk.Label(state,text="Ölçüm kart üzerinde mi yapıldı?").pack(pady=10)
+            selected=tk.StringVar(value="in_circuit")
+            ttk.Radiobutton(state,text="Devre içinde",variable=selected,value="in_circuit").pack()
+            ttk.Radiobutton(state,text="Devre dışında",variable=selected,value="out_of_circuit").pack()
+            def apply():
+                try:
+                    result=compare(spec,task,value.get(),selected.get())
+                    feedback.set(result["status"]+": "+result["detail"])
+                    task["reference_result"]=result
+                    task["reference_source"]=spec["source_url"]
+                    state.destroy()
+                except (ValueError,TypeError,KeyError) as exc:
+                    messagebox.showerror("Karşılaştırma hatası",str(exc),parent=state)
+            ttk.Button(state,text="Koşulları karşılaştır",command=apply).pack(pady=10)
+        except (OSError,ValueError) as exc:
+            messagebox.showerror("Referans okunamadı",str(exc),parent=win)
+
     def next_task():
         if not tasks:
             return
@@ -169,7 +202,7 @@ def open_guided_window(parent, image_path=None):
     controls=ttk.Frame(win)
     controls.pack(pady=10)
     for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
-                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Ölçümü değerlendir",submit),("Sonraki komponent",next_task),
+                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
                           ("Sonuçları kaydet",save_results)]:
         ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
     render()
