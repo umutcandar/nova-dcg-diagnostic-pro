@@ -10,6 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from guide import GUIDES, steps_for
 from report import create_pdf
+from diagnosis import prioritize
 from annotator import mark_photo
 
 def assess(mode, value):
@@ -70,6 +71,7 @@ class App:
         buttons = ttk.Frame(main)
         buttons.pack(fill="x", pady=12)
         ttk.Button(buttons, text="Fotoğrafı işaretle", command=self.annotate).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Olası kontrolleri sırala", command=self.show_findings).pack(side="left", padx=4)
         ttk.Button(buttons, text="PDF servis raporu", command=self.pdf_report).pack(side="left", padx=4)
         ttk.Button(buttons, text="JSON kaydet", command=lambda:self.export("json")).pack(side="left", padx=4)
         ttk.Button(buttons, text="CSV rapor", command=lambda:self.export("csv")).pack(side="left", padx=4)
@@ -81,6 +83,22 @@ class App:
         steps = steps_for(component)
         messagebox.showinfo("Kontrol rehberi: " + component,
                             "\\n\\n".join(str(i) + ". " + step for i, step in enumerate(steps, 1)))
+
+    def show_findings(self):
+        if not self.entries:
+            messagebox.showinfo("Ölçüm yok", "Önce en az bir ölçüm girin.")
+            return
+        findings = prioritize(self.entries)
+        content = "\\n\\n".join(
+            f"{i}. {f.title} [{f.priority}]\\n{f.reason}\\nSonraki adım: {f.next_step}"
+            for i, f in enumerate(findings, 1))
+        win = tk.Toplevel(self.root)
+        win.title("Ölçüme dayalı kontrol öncelikleri")
+        win.geometry("740x430")
+        box = tk.Text(win, wrap="word", padx=12, pady=12)
+        box.pack(fill="both", expand=True)
+        box.insert("1.0", content)
+        box.configure(state="disabled")
 
     def annotate(self):
         if not self.photo:
