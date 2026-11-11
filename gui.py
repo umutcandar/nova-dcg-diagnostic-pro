@@ -19,6 +19,7 @@ from service_records import save_job, load_job, list_jobs
 from component_library import component_info
 from check_planner import next_checks
 from circuit_analysis import analyze_circuit, example_circuit
+from datasheet_catalog import manufacturer_search_url, load_entry
 
 def assess(mode, value):
     if value < 0:
@@ -93,6 +94,7 @@ class App:
                 ("Komponent bilgisi", self.show_component_info),
                 ("Olası kontrolleri sırala", self.show_findings),
                 ("Devre bağlantı analizi", self.circuit_window),
+                ("Datasheet ara", self.datasheet_window),
                 ("Fotoğrafı işaretle", self.annotate)]),
             ("Yapay zekâ / Veri", [
                 ("Model ile tara", self.scan_model), ("Komponent etiketle", self.label_components),
@@ -105,6 +107,35 @@ class App:
             for column in range(3):
                 panel.columnconfigure(column, weight=1)
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
+
+    def datasheet_window(self):
+        """Technician chooses and verifies source; never fabricate ratings."""
+        import webbrowser
+        win=tk.Toplevel(self.root)
+        win.title("Komponent datasheet araştırması")
+        win.geometry("620x340")
+        ttk.Label(win,text="Fotoğraftaki parça kodunu doğrulayın (ör. IRF540N).").pack(anchor="w",padx=12,pady=10)
+        part=tk.StringVar()
+        ttk.Entry(win,textvariable=part,width=40).pack(anchor="w",padx=12)
+        details=tk.Text(win,height=8,wrap="word")
+        details.pack(fill="both",expand=True,padx=12,pady=10)
+        def find():
+            try:
+                key=part.get()
+                try:
+                    entry=load_entry("datasheets",key)
+                    message=("Kayıtlı kaynak: "+entry["source_url"]+
+                             "\\nÜretici: "+entry["manufacturer"]+
+                             "\\nNot: "+entry.get("notes",""))
+                except FileNotFoundError:
+                    message="Yerel doğrulanmış kayıt yok. Üretici datasheet'ini doğrulayın."
+                url=manufacturer_search_url(key)
+                details.delete("1.0","end")
+                details.insert("1.0",message+"\\n\\nArama bağlantısı: "+url)
+                webbrowser.open(url)
+            except (ValueError,OSError) as exc:
+                messagebox.showerror("Datasheet hatası",str(exc),parent=win)
+        ttk.Button(win,text="Kayıt kontrol et ve internette ara",command=find).pack(pady=8)
 
     def circuit_window(self):
         """Editable JSON topology: explicitly supplied facts, never inferred."""
