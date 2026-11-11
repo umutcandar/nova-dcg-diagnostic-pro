@@ -90,8 +90,16 @@ def open_guided_window(parent, image_path=None):
     def select_component_at(x,y):
         if not tasks or not displayed_size[0] or not displayed_size[1]:
             return False
-        ix=x*source.width/displayed_size[0]
-        iy=y*source.height/displayed_size[1]
+        # Tk labels center an image when the widget is larger than the bitmap.
+        # Remove the visual padding before converting click coordinates.
+        left=(photo.winfo_width()-displayed_size[0])/2
+        top=(photo.winfo_height()-displayed_size[1])/2
+        local_x=x-left
+        local_y=y-top
+        if not (0<=local_x<displayed_size[0] and 0<=local_y<displayed_size[1]):
+            return False
+        ix=local_x*source.width/displayed_size[0]
+        iy=local_y*source.height/displayed_size[1]
         matches=[]
         for i,task in enumerate(tasks):
             x1,y1,x2,y2=task["bbox_xyxy_pixels"]
