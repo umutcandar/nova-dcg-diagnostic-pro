@@ -11,6 +11,7 @@ from datasheet_catalog import manufacturer_search_url
 from measurement_reference import compare
 from probe_points import validate_probe_points
 from photo_coordinates import image_to_widget_point
+from pin_mapping import suggest_probe_pair
 from model_inference import detect_components
 
 def open_guided_window(parent, image_path=None):
@@ -229,6 +230,63 @@ def open_guided_window(parent, image_path=None):
                 messagebox.showerror("Doğrulama hatası",str(exc),parent=dialog)
         ttk.Button(dialog,text="Prob noktalarını kaydet",command=apply).pack(pady=8)
 
+    def map_datasheet_pins():
+        if not tasks:
+            messagebox.showinfo("Tespit gerekli","Önce komponent seçin.",parent=win)
+            return
+        task=tasks[index[0]]
+        path=filedialog.askopenfilename(parent=win,title="Doğrulanmış pinout JSON seç",filetypes=[("JSON","*.json")])
+        if not path:
+            return
+        try:
+            pinout=json.loads(Path(path).read_text(encoding="utf-8"))
+            if not pinout.get("technician_verified"):
+                raise ValueError("Pinout teknisyen tarafından doğrulanmamış")
+            pins=pinout.get("pins",{})
+            if not pins:
+                raise ValueError("Pinout boş")
+        except (OSError,ValueError,TypeError) as exc:
+            messagebox.showerror("Pinout hatası",str(exc),parent=win)
+            return
+        dialog=tk.Toplevel(win)
+        dialog.title("Pinleri fotoğrafla eşleştir")
+        dialog.geometry("580x520")
+        ttk.Label(dialog,text="Datasheet pin numaralarını fotoğraftaki koordinatlarla eşleştirin.",wraplength=540).pack(pady=8)
+        entries={}
+        for number,role in pins.items():
+            line=ttk.Frame(dialog)
+            line.pack(pady=3)
+            ttk.Label(line,text=f"Pin {number} ({role})",width=20).pack(side="left")
+            x=ttk.Entry(line,width=9)
+            y=ttk.Entry(line,width=9)
+            x.pack(side="left",padx=3)
+            y.pack(side="left",padx=3)
+            entries[str(number)]=(x,y)
+        roles=sorted(set(pins.values()))
+        red=tk.StringVar(value=roles[0])
+        black=tk.StringVar(value=roles[-1])
+        for name,var in (("Kırmızı prob pin işlevi",red),("Siyah prob pin işlevi",black)):
+            ttk.Label(dialog,text=name).pack()
+            ttk.Combobox(dialog,textvariable=var,values=roles,state="readonly").pack()
+        confirm=tk.BooleanVar(value=False)
+        ttk.Checkbutton(dialog,text="Pin yönünü, işlevlerini ve fotoğraf konumlarını doğruladım",variable=confirm).pack(pady=8)
+        def apply():
+            try:
+                if not confirm.get():
+                    raise ValueError("Teknisyen onayı gerekli")
+                points={number:[float(x.get()),float(y.get())] for number,(x,y) in entries.items()}
+                proposal=suggest_probe_pair(pinout,points,red.get(),black.get())
+                result=validate_probe_points(source.size,task["bbox_xyxy_pixels"],
+                    proposal["red"]["point"],proposal["black"]["point"],True)
+                task["probe_points"]=result
+                task["pin_mapping"]=proposal
+                feedback.set("Datasheet pin eşleştirmesi doğrulandı; elektriksel sağlamlık henüz belirlenmedi.")
+                render()
+                dialog.destroy()
+            except (ValueError,TypeError,KeyError) as exc:
+                messagebox.showerror("Pin eşleştirme hatası",str(exc),parent=dialog)
+        ttk.Button(dialog,text="Pin eşleştirmesini kaydet",command=apply).pack(pady=8)
+
     def submit():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent tespitlerini yükleyin.",parent=win)
@@ -291,7 +349,7 @@ def open_guided_window(parent, image_path=None):
     controls=ttk.Frame(win)
     controls.pack(pady=10)
     for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
-                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
+                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Datasheet pinlerini eşleştir",map_datasheet_pins),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
                           ("Sonuçları kaydet",save_results)]:
         ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
     render()
