@@ -6,6 +6,8 @@ from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk, ImageDraw
 from guided_measurement import measurement_plan, evaluate
 from detection_review import review_detections, ALLOWED
+from component_ocr import read_markings
+from datasheet_catalog import manufacturer_search_url
 from model_inference import detect_components
 
 def open_guided_window(parent, image_path=None):
@@ -108,6 +110,35 @@ def open_guided_window(parent, image_path=None):
                 messagebox.showerror("Düzeltme hatası",str(exc),parent=dialog)
         ttk.Button(dialog,text="Onayla",command=apply).pack(pady=8)
 
+    def read_component_code():
+        if not tasks:
+            messagebox.showinfo("Tespit gerekli","Önce komponent tespitlerini yükleyin.",parent=win)
+            return
+        task=tasks[index[0]]
+        try:
+            found=read_markings(image_path,task["bbox_xyxy_pixels"])
+        except (OSError,ValueError,RuntimeError,ImportError) as exc:
+            messagebox.showerror("OCR kullanılamıyor",str(exc),parent=win)
+            return
+        dialog=tk.Toplevel(win)
+        dialog.title("Parça kodu doğrulama")
+        dialog.geometry("540x300")
+        ttk.Label(dialog,text="OCR tahmini; parça kodunu etiketten doğrulayın.").pack(pady=8)
+        code=tk.StringVar(value=found["candidates"][0] if found["candidates"] else "")
+        ttk.Entry(dialog,textvariable=code,width=42).pack(pady=8)
+        ttk.Label(dialog,text="Okunan metin: "+found["raw_text"][:140],wraplength=480).pack(pady=8)
+        def confirm():
+            try:
+                url=manufacturer_search_url(code.get())
+            except ValueError as exc:
+                messagebox.showerror("Geçersiz kod",str(exc),parent=dialog)
+                return
+            task["part_number"]=code.get().strip().upper()
+            task["part_number_verified_by_user"]=True
+            feedback.set("Parça kodu doğrulandı. Datasheet araması: "+url)
+            dialog.destroy()
+        ttk.Button(dialog,text="Kodu doğrula",command=confirm).pack(pady=8)
+
     def submit():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent tespitlerini yükleyin.",parent=win)
@@ -138,7 +169,7 @@ def open_guided_window(parent, image_path=None):
     controls=ttk.Frame(win)
     controls.pack(pady=10)
     for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
-                          ("Türü doğrula / düzelt",correct_current),("Ölçümü değerlendir",submit),("Sonraki komponent",next_task),
+                          ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Ölçümü değerlendir",submit),("Sonraki komponent",next_task),
                           ("Sonuçları kaydet",save_results)]:
         ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
     render()
