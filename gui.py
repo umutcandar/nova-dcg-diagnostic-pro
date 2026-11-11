@@ -20,6 +20,7 @@ from component_library import component_info
 from check_planner import next_checks
 from circuit_analysis import analyze_circuit, example_circuit
 from datasheet_catalog import manufacturer_search_url, load_entry
+from guided_photo_ui import open_guided_window
 
 def assess(mode, value):
     if value < 0:
@@ -37,7 +38,7 @@ def assess(mode, value):
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("NOVA DCG Diagnostic Pro V1.3")
+        self.root.title("NOVA DCG Diagnostic Pro V1.4")
         self.root.geometry("1100x760")
         self.root.minsize(880, 640)
         self.photo = ""
@@ -45,7 +46,7 @@ class App:
         self.entries = []
         main = ttk.Frame(root, padding=18)
         main.pack(fill="both", expand=True)
-        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.3", font=("Helvetica", 20, "bold")).pack(anchor="w")
+        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.4", font=("Helvetica", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text="Yalnızca enerjisiz, artık gerilimi doğrulanmış düşük gerilimli kartlarda kullanın.", foreground="#a33").pack(anchor="w", pady=(4, 15))
         form = ttk.Frame(main)
         form.pack(fill="x")
@@ -97,6 +98,7 @@ class App:
                 ("Datasheet ara", self.datasheet_window),
                 ("Fotoğrafı işaretle", self.annotate)]),
             ("Yapay zekâ / Veri", [
+                ("Fotoğrafta ölçüm rehberi", self.guided_photo),
                 ("Model ile tara", self.scan_model), ("Komponent etiketle", self.label_components),
                 ("Etiketleri YOLO aktar", self.export_labels)])]:
             panel = ttk.Frame(tabs, padding=8)
@@ -107,6 +109,9 @@ class App:
             for column in range(3):
                 panel.columnconfigure(column, weight=1)
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
+
+    def guided_photo(self):
+        open_guided_window(self.root, self.photo if self.photo and Path(self.photo).is_file() else None)
 
     def datasheet_window(self):
         """Technician chooses and verifies source; never fabricate ratings."""
