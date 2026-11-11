@@ -57,3 +57,8 @@ Birim testleri: `python3 -m unittest test_guide.py test_diagnosis.py test_compon
 **Model ile tara** düğmesi, kullanıcı tarafından sağlanan eğitilmiş `.pt` ağırlık dosyasını seçerek fotoğraftaki olası komponentleri listeler. Ek kurulum: `python3 -m pip install ultralytics`. Projede **eğitilmiş model ağırlıkları bulunmuyor**; dolayısıyla bu düğme tek başına otomatik tanıma sağlamaz. Model sınıfları `dataset.CLASSES` ile birebir eşleşmelidir. Sonuçlar doğrulanmamış önerilerdir. Ayrıntılar: `MODEL_SETUP.md`.
 
 Testler: `python3 -m unittest test_guide.py test_diagnosis.py test_component_labeler.py test_dataset.py test_model_inference.py`.
+
+
+## V0.9 - veri seti hazırlama ve yerel eğitim
+
+`prepare_dataset.py`, doğrulanmış manuel etiketlerden aynı kartı farklı veri kümelerine dağıtmadan train/val/test klasörleri ve YOLO `data.yaml` oluşturur. JSON dosyalarına aynı fiziksel karta ait tüm fotoğraflarda aynı `board_id` alanı eklenmelidir. `train_model.py`, kullanıcı tarafından sağlanan yerel temel model ağırlıklarıyla isteğe bağlı eğitim başlatabilir. **Veri seti, eğitilmiş model ve doğrulanmış performans sonuçları henüz yoktur.** Ayrıntılar: `DATA_COLLECTION.md`.
