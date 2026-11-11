@@ -18,6 +18,7 @@ from model_inference import detect_components
 from service_records import save_job, load_job, list_jobs
 from component_library import component_info
 from check_planner import next_checks
+from circuit_analysis import analyze_circuit, example_circuit
 
 def assess(mode, value):
     if value < 0:
@@ -91,6 +92,7 @@ class App:
             ("Analiz", [
                 ("Komponent bilgisi", self.show_component_info),
                 ("Olası kontrolleri sırala", self.show_findings),
+                ("Devre bağlantı analizi", self.circuit_window),
                 ("Fotoğrafı işaretle", self.annotate)]),
             ("Yapay zekâ / Veri", [
                 ("Model ile tara", self.scan_model), ("Komponent etiketle", self.label_components),
@@ -103,6 +105,67 @@ class App:
             for column in range(3):
                 panel.columnconfigure(column, weight=1)
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
+
+    def circuit_window(self):
+        """Editable JSON topology: explicitly supplied facts, never inferred."""
+        win=tk.Toplevel(self.root)
+        win.title("Devre bağlantı analizi - manuel veriler")
+        win.geometry("850x680")
+        ttk.Label(win,text="Yalnızca enerjisiz, deşarjı doğrulanmış kart. Hat ve komponent bağlantılarını manuel girin.").pack(anchor="w",padx=12,pady=8)
+        ttk.Label(win,text="JSON alanları: nets, components, measurements. Örnek veriler gerçek kartı temsil etmez.").pack(anchor="w",padx=12)
+        editor=tk.Text(win,wrap="none",height=17)
+        editor.pack(fill="both",expand=True,padx=12,pady=8)
+        editor.insert("1.0",json.dumps(example_circuit(),ensure_ascii=False,indent=2))
+        ttk.Label(win,text="Analiz sonuçları (kesin arıza teşhisi değildir):").pack(anchor="w",padx=12)
+        output=tk.Text(win,wrap="word",height=10,state="disabled")
+        output.pack(fill="both",expand=True,padx=12,pady=8)
+        def run_analysis():
+            try:
+                data=json.loads(editor.get("1.0","end"))
+                if not isinstance(data,dict):
+                    raise ValueError("JSON nesnesi gerekli")
+                result=analyze_circuit(data["components"],data["nets"],data["measurements"])
+                lines=[]
+                for item in result:
+                    lines.append(f"{item['title']} | Hat: {item['net']} | Öncelik: {item['priority']}")
+                    lines.append(item["reason"])
+                    lines.append("Bağlı elemanlar: "+(", ".join(item["refs"]) or "tanımlanmadı"))
+                    lines.append("")
+                text="\\n".join(lines) if lines else "Bu verilere göre özel bir kontrol önerisi üretilmedi."
+                output.configure(state="normal")
+                output.delete("1.0","end")
+                output.insert("1.0",text)
+                output.configure(state="disabled")
+            except (ValueError,TypeError,KeyError,AttributeError) as exc:
+                messagebox.showerror("Devre verisi hatası",str(exc),parent=win)
+        def load_json():
+            path=filedialog.askopenfilename(parent=win,filetypes=[("JSON","*.json")])
+            if not path:
+                return
+            try:
+                data=json.loads(Path(path).read_text(encoding="utf-8"))
+                if not isinstance(data,dict):
+                    raise ValueError("JSON nesnesi gerekli")
+                editor.delete("1.0","end")
+                editor.insert("1.0",json.dumps(data,ensure_ascii=False,indent=2))
+            except (OSError,ValueError) as exc:
+                messagebox.showerror("Dosya açılamadı",str(exc),parent=win)
+        def save_json():
+            path=filedialog.asksaveasfilename(parent=win,defaultextension=".json",filetypes=[("JSON","*.json")])
+            if not path:
+                return
+            try:
+                data=json.loads(editor.get("1.0","end"))
+                if not isinstance(data,dict):
+                    raise ValueError("JSON nesnesi gerekli")
+                Path(path).write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
+            except (OSError,ValueError) as exc:
+                messagebox.showerror("Dosya kaydedilemedi",str(exc),parent=win)
+        actions=ttk.Frame(win)
+        actions.pack(fill="x",padx=12,pady=8)
+        ttk.Button(actions,text="Analiz et",command=run_analysis).pack(side="left",padx=4)
+        ttk.Button(actions,text="JSON aç",command=load_json).pack(side="left",padx=4)
+        ttk.Button(actions,text="JSON kaydet",command=save_json).pack(side="left",padx=4)
 
     def show_component_info(self):
         name=self.component.get()
