@@ -20,7 +20,10 @@ def download(destination=DEFAULT):
             import shutil
             shutil.copyfileobj(response, out)
         if temp.stat().st_size < 1024:
-            raise ValueError("Downloaded file is unexpectedly small")
+            raise ValueError("Downloaded file is unexpectedly small or is a Git LFS pointer, not model weights")
+        with temp.open("rb") as check:
+            if check.read(64).startswith(b"version https://git-lfs.github.com/spec/v1"):
+                raise ValueError("Git LFS pointer downloaded instead of model weights")
         digest=hashlib.sha256(temp.read_bytes()).hexdigest()
         temp.replace(destination)
     finally:
