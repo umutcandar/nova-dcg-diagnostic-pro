@@ -273,15 +273,20 @@ class App:
         if self.photo:
             if self._analysis_active:
                 self.analysis_status.set("Fotoğraf analiz ediliyor; sonuçlar otomatik gösterilecek.")
-                return
-            if self.auto_photo == self.photo:
+            elif self.auto_photo == self.photo:
                 self.guided_photo()
-                return
+            else:
+                messagebox.showwarning("Otomatik analiz tamamlanmadı",
+                    self.analysis_status.get(),parent=self.root)
+            return
         name=self.component.get()
         try:
             info=component_info(name)
         except KeyError:
-            messagebox.showinfo("Bilgi yok", "Bu komponent için henüz bilgi bulunmuyor.")
+            steps=steps_for(name)
+            messagebox.showinfo("Kontrol rehberi: "+name,
+                "\n".join(steps) if steps else "Bu bileşen için doğrulanmış referans bulunamadı.",
+                parent=self.root)
             return
         messagebox.showinfo(name, info["function"]+"\\n\\nKontroller:\\n"+
                             "\\n".join("- "+x for x in info["checks"])+"\\n\\nUyarı: "+info["caution"])
