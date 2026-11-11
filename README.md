@@ -50,3 +50,10 @@ Fotoğraftan otomatik komponent tanıma henüz geliştirilmedi; bunun için doğ
 **Komponent etiketle** düğmesiyle kart fotoğrafında direnç, kondansatör, diyot, entegre, transistör, bobin ve konnektörleri elle dikdörtgen içine alın. Etiketleri, görüntü boyutuna göre normalize edilmiş koordinatlarla JSON olarak dışa aktarın. Bu aşama gelecekteki bir görüntü tanıma modeline veri hazırlamak içindir; **otomatik komponent algılama, OCR veya eğitilmiş model henüz bulunmuyor**. Etiketler doğrulanmamış kullanıcı girişidir.
 
 Birim testleri: `python3 -m unittest test_guide.py test_diagnosis.py test_component_labeler.py`.
+
+
+## V0.8 - isteğe bağlı yerel YOLO modeli
+
+**Model ile tara** düğmesi, kullanıcı tarafından sağlanan eğitilmiş `.pt` ağırlık dosyasını seçerek fotoğraftaki olası komponentleri listeler. Ek kurulum: `python3 -m pip install ultralytics`. Projede **eğitilmiş model ağırlıkları bulunmuyor**; dolayısıyla bu düğme tek başına otomatik tanıma sağlamaz. Model sınıfları `dataset.CLASSES` ile birebir eşleşmelidir. Sonuçlar doğrulanmamış önerilerdir. Ayrıntılar: `MODEL_SETUP.md`.
+
+Testler: `python3 -m unittest test_guide.py test_diagnosis.py test_component_labeler.py test_dataset.py test_model_inference.py`.
