@@ -15,6 +15,8 @@ from annotator import mark_photo
 from component_labeler import launch_labeler
 from dataset import export_yolo
 from model_inference import detect_components
+from service_records import save_job, load_job, list_jobs
+from component_library import component_info
 
 def assess(mode, value):
     if value < 0:
@@ -32,14 +34,14 @@ def assess(mode, value):
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("NOVA DCG Diagnostic Pro V0.2")
+        self.root.title("NOVA DCG Diagnostic Pro V1.2")
         self.root.geometry("850x620")
         self.photo = ""
         self.annotated_photo = ""
         self.entries = []
         main = ttk.Frame(root, padding=18)
         main.pack(fill="both", expand=True)
-        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V0.2", font=("Helvetica", 20, "bold")).pack(anchor="w")
+        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.2", font=("Helvetica", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text="Yalnızca enerjisiz, artık gerilimi doğrulanmış düşük gerilimli kartlarda kullanın.", foreground="#a33").pack(anchor="w", pady=(4, 15))
         form = ttk.Frame(main)
         form.pack(fill="x")
@@ -73,6 +75,9 @@ class App:
         self.table.pack(fill="both", expand=True)
         buttons = ttk.Frame(main)
         buttons.pack(fill="x", pady=12)
+        ttk.Button(buttons, text="Servis kaydet", command=self.save_service).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Servis aç", command=self.open_service).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Komponent bilgisi", command=self.show_component_info).pack(side="left", padx=4)
         ttk.Button(buttons, text="Model ile tara", command=self.scan_model).pack(side="left", padx=4)
         ttk.Button(buttons, text="Etiketleri YOLO aktar", command=self.export_labels).pack(side="left", padx=4)
         ttk.Button(buttons, text="Komponent etiketle", command=self.label_components).pack(side="left", padx=4)
@@ -83,6 +88,60 @@ class App:
         ttk.Button(buttons, text="CSV rapor", command=lambda:self.export("csv")).pack(side="left", padx=4)
         ttk.Button(buttons, text="Ölçümleri temizle", command=self.clear).pack(side="left", padx=4)
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
+
+    def show_component_info(self):
+        name=self.component.get()
+        try:
+            info=component_info(name)
+        except KeyError:
+            messagebox.showinfo("Bilgi yok", "Bu komponent için henüz bilgi bulunmuyor.")
+            return
+        messagebox.showinfo(name, info["function"]+"\\n\\nKontroller:\\n"+
+                            "\\n".join("- "+x for x in info["checks"])+"\\n\\nUyarı: "+info["caution"])
+
+    def save_service(self):
+        job=self.job.get().strip()
+        if not job:
+            messagebox.showerror("Eksik bilgi", "Önce iş numarası girin.")
+            return
+        try:
+            path=save_job("service_jobs",job,job,measurements=self.entries)
+        except (OSError,ValueError) as exc:
+            messagebox.showerror("Kaydetme hatası",str(exc))
+            return
+        messagebox.showinfo("Servis kaydedildi",str(path))
+
+    def open_service(self):
+        jobs=list_jobs("service_jobs")
+        if not jobs:
+            messagebox.showinfo("Kayıt yok","Kayıtlı servis bulunamadı.")
+            return
+        win=tk.Toplevel(self.root)
+        win.title("Servis kayıtları")
+        win.geometry("500x350")
+        items=tk.Listbox(win)
+        items.pack(fill="both",expand=True)
+        for job in jobs:
+            items.insert("end",job["job_id"]+" | "+job["updated_at"])
+        def select():
+            selected=items.curselection()
+            if not selected:
+                return
+            try:
+                record=load_job("service_jobs",jobs[selected[0]]["job_id"])
+            except (OSError,ValueError) as exc:
+                messagebox.showerror("Açma hatası",str(exc))
+                return
+            self.job.delete(0,"end")
+            self.job.insert(0,record["job_id"])
+            self.entries=list(record["measurements"])
+            for row in self.table.get_children():
+                self.table.delete(row)
+            for item in self.entries:
+                self.table.insert("","end",values=(item.get("point",""),
+                    item.get("mode",""),item.get("value",""),item.get("assessment","")))
+            win.destroy()
+        ttk.Button(win,text="Seçili kaydı aç",command=select).pack(pady=8)
 
     def show_guide(self):
         component = self.component.get()
