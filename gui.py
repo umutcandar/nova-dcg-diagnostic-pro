@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from guide import GUIDES, steps_for
+from report import create_pdf
+from annotator import mark_photo
 
 def assess(mode, value):
     if value < 0:
@@ -29,6 +31,7 @@ class App:
         self.root.title("NOVA DCG Diagnostic Pro V0.2")
         self.root.geometry("850x620")
         self.photo = ""
+        self.annotated_photo = ""
         self.entries = []
         main = ttk.Frame(root, padding=18)
         main.pack(fill="both", expand=True)
@@ -66,6 +69,8 @@ class App:
         self.table.pack(fill="both", expand=True)
         buttons = ttk.Frame(main)
         buttons.pack(fill="x", pady=12)
+        ttk.Button(buttons, text="Fotoğrafı işaretle", command=self.annotate).pack(side="left", padx=4)
+        ttk.Button(buttons, text="PDF servis raporu", command=self.pdf_report).pack(side="left", padx=4)
         ttk.Button(buttons, text="JSON kaydet", command=lambda:self.export("json")).pack(side="left", padx=4)
         ttk.Button(buttons, text="CSV rapor", command=lambda:self.export("csv")).pack(side="left", padx=4)
         ttk.Button(buttons, text="Ölçümleri temizle", command=self.clear).pack(side="left", padx=4)
@@ -77,10 +82,34 @@ class App:
         messagebox.showinfo("Kontrol rehberi: " + component,
                             "\\n\\n".join(str(i) + ". " + step for i, step in enumerate(steps, 1)))
 
+    def annotate(self):
+        if not self.photo:
+            messagebox.showinfo("Fotoğraf gerekli", "Önce kart fotoğrafı seçin.")
+            return
+        try:
+            mark_photo(self.root, self.photo)
+        except Exception as exc:
+            messagebox.showerror("Fotoğraf hatası", str(exc))
+
+    def pdf_report(self):
+        if not self.entries:
+            messagebox.showinfo("Boş rapor", "Önce en az bir ölçüm ekleyin.")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")])
+        if not path:
+            return
+        try:
+            create_pdf(path, self.job.get().strip(), self.entries,
+                       self.annotated_photo or self.photo)
+            messagebox.showinfo("PDF hazır", path)
+        except Exception as exc:
+            messagebox.showerror("PDF oluşturulamadı", str(exc))
+
     def pick_photo(self):
         path = filedialog.askopenfilename(filetypes=[("Fotoğraflar","*.png *.jpg *.jpeg *.heic"),("Tüm dosyalar","*.*")])
         if path:
             self.photo = path
+            self.annotated_photo = ""
             self.photo_label.config(text=Path(path).name[:28])
 
     def add(self):
