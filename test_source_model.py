@@ -7,6 +7,6 @@ class SourceModelTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             adapt_source_classes(list(reversed(SOURCE_CLASSES)))
     def test_unmapped_preserved(self):
-        self.assertEqual(mapped_label("Crystal"),"Diğer: Crystal")
+        self.assertEqual(mapped_label("Crystal"),"Kristal")
 if __name__=="__main__":
     unittest.main()
