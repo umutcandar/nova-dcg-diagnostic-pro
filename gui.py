@@ -34,14 +34,15 @@ def assess(mode, value):
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("NOVA DCG Diagnostic Pro V1.2")
-        self.root.geometry("850x620")
+        self.root.title("NOVA DCG Diagnostic Pro V1.3")
+        self.root.geometry("1100x760")
+        self.root.minsize(880, 640)
         self.photo = ""
         self.annotated_photo = ""
         self.entries = []
         main = ttk.Frame(root, padding=18)
         main.pack(fill="both", expand=True)
-        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.2", font=("Helvetica", 20, "bold")).pack(anchor="w")
+        ttk.Label(main, text="NOVA DCG | Diagnostic Pro V1.3", font=("Helvetica", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text="Yalnızca enerjisiz, artık gerilimi doğrulanmış düşük gerilimli kartlarda kullanın.", foreground="#a33").pack(anchor="w", pady=(4, 15))
         form = ttk.Frame(main)
         form.pack(fill="x")
@@ -51,15 +52,21 @@ class App:
         ttk.Button(form, text="Kart fotoğrafı seç", command=self.pick_photo).grid(row=0, column=2, padx=8)
         self.photo_label = ttk.Label(form, text="Fotoğraf seçilmedi")
         self.photo_label.grid(row=0, column=3, sticky="w")
-        ttk.Label(form, text="Test noktası:").grid(row=1, column=0, sticky="w")
+        ttk.Label(form, text="Cihaz modeli:").grid(row=1, column=0, sticky="w")
+        self.device_model = ttk.Entry(form, width=35)
+        self.device_model.grid(row=1, column=1, padx=8, pady=5, sticky="w")
+        ttk.Label(form, text="Arıza açıklaması:").grid(row=2, column=0, sticky="w")
+        self.fault_description = ttk.Entry(form, width=65)
+        self.fault_description.grid(row=2, column=1, columnspan=3, padx=8, pady=5, sticky="ew")
+        ttk.Label(form, text="Test noktası:").grid(row=3, column=0, sticky="w")
         self.point = ttk.Entry(form, width=35)
-        self.point.grid(row=1, column=1, padx=8, pady=5, sticky="w")
+        self.point.grid(row=3, column=1, padx=8, pady=5, sticky="w")
         self.mode = ttk.Combobox(form, values=["Direnç (Ω)", "Diyot (V)"], state="readonly", width=18)
         self.mode.current(0)
-        self.mode.grid(row=1, column=2, padx=8)
+        self.mode.grid(row=3, column=2, padx=8)
         self.value = ttk.Entry(form, width=15)
-        self.value.grid(row=1, column=3, padx=8)
-        ttk.Label(form, text="Değer →").grid(row=1, column=4)
+        self.value.grid(row=3, column=3, padx=8)
+        ttk.Label(form, text="Değer →").grid(row=3, column=4)
         ttk.Button(main, text="Ölçümü kaydet ve değerlendir", command=self.add).pack(anchor="w", pady=10)
         guide_row = ttk.Frame(main)
         guide_row.pack(fill="x", pady=(0, 8))
@@ -73,20 +80,27 @@ class App:
             self.table.heading(key, text=label)
             self.table.column(key, width=width)
         self.table.pack(fill="both", expand=True)
-        buttons = ttk.Frame(main)
-        buttons.pack(fill="x", pady=12)
-        ttk.Button(buttons, text="Servis kaydet", command=self.save_service).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Servis aç", command=self.open_service).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Komponent bilgisi", command=self.show_component_info).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Model ile tara", command=self.scan_model).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Etiketleri YOLO aktar", command=self.export_labels).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Komponent etiketle", command=self.label_components).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Fotoğrafı işaretle", command=self.annotate).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Olası kontrolleri sırala", command=self.show_findings).pack(side="left", padx=4)
-        ttk.Button(buttons, text="PDF servis raporu", command=self.pdf_report).pack(side="left", padx=4)
-        ttk.Button(buttons, text="JSON kaydet", command=lambda:self.export("json")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="CSV rapor", command=lambda:self.export("csv")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Ölçümleri temizle", command=self.clear).pack(side="left", padx=4)
+        tabs = ttk.Notebook(main)
+        tabs.pack(fill="x", pady=10)
+        for title, actions in [
+            ("Servis", [
+                ("Servis kaydet", self.save_service), ("Servis aç", self.open_service),
+                ("PDF servis raporu", self.pdf_report), ("JSON kaydet", lambda: self.export("json")),
+                ("CSV rapor", lambda: self.export("csv")), ("Ölçümleri temizle", self.clear)]),
+            ("Analiz", [
+                ("Komponent bilgisi", self.show_component_info),
+                ("Olası kontrolleri sırala", self.show_findings),
+                ("Fotoğrafı işaretle", self.annotate)]),
+            ("Yapay zekâ / Veri", [
+                ("Model ile tara", self.scan_model), ("Komponent etiketle", self.label_components),
+                ("Etiketleri YOLO aktar", self.export_labels)])]:
+            panel = ttk.Frame(tabs, padding=8)
+            tabs.add(panel, text=title)
+            for index, (label, callback) in enumerate(actions):
+                ttk.Button(panel, text=label, command=callback).grid(
+                    row=index // 3, column=index % 3, padx=6, pady=5, sticky="ew")
+            for column in range(3):
+                panel.columnconfigure(column, weight=1)
         ttk.Label(main, text="Bu sürüm arıza teşhisi yapmaz; yalnızca ölçüm kaydı ve ihtiyatlı uyarılar sunar.", foreground="#555").pack(anchor="w")
 
     def show_component_info(self):
@@ -105,7 +119,9 @@ class App:
             messagebox.showerror("Eksik bilgi", "Önce iş numarası girin.")
             return
         try:
-            path=save_job("service_jobs",job,job,measurements=self.entries)
+            path=save_job("service_jobs",job,self.device_model.get().strip() or "Belirtilmedi",
+                          measurements=self.entries,model=self.device_model.get(),
+                          fault_description=self.fault_description.get())
         except (OSError,ValueError) as exc:
             messagebox.showerror("Kaydetme hatası",str(exc))
             return
@@ -134,6 +150,10 @@ class App:
                 return
             self.job.delete(0,"end")
             self.job.insert(0,record["job_id"])
+            self.device_model.delete(0,"end")
+            self.device_model.insert(0,record.get("model",record.get("device","")))
+            self.fault_description.delete(0,"end")
+            self.fault_description.insert(0,record.get("fault_description",""))
             self.entries=list(record["measurements"])
             for row in self.table.get_children():
                 self.table.delete(row)
