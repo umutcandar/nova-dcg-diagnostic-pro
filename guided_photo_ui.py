@@ -3,7 +3,7 @@ import json
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageOps
 from guided_measurement import measurement_plan, evaluate
 from detection_review import review_detections, ALLOWED
 from component_ocr import read_markings
@@ -22,7 +22,8 @@ def open_guided_window(parent, image_path=None, initial_detections=None):
     if not image_path:
         return
     try:
-        source=Image.open(image_path).convert("RGB")
+        with Image.open(image_path) as opened:
+            source=ImageOps.exif_transpose(opened).convert("RGB")
     except (OSError,ValueError) as exc:
         messagebox.showerror("Fotoğraf açılamadı",str(exc),parent=parent)
         return
@@ -68,7 +69,7 @@ def open_guided_window(parent, image_path=None, initial_detections=None):
             messagebox.showwarning("Referans hatası",str(exc),parent=win)
             return
         if "status" in g:
-            guide_fields["Komponent"].set(str(task.get("component","Bilinmiyor")))
+            guide_fields["Komponent"].set(str(task.get("source_label",task.get("component","Bilinmiyor"))))
             for heading in ("Fluke modu","Hazırlık","Prob yerleri","Beklenen değer","Sonraki adım"):
                 guide_fields[heading].set(g["message"])
             return
@@ -190,11 +191,15 @@ def open_guided_window(parent, image_path=None, initial_detections=None):
             try:
                 new=review_detections(detections,{index[0]:selected.get()})
                 detections[:]=new
-                previous=tasks[index[0]]
-                tasks[:]=measurement_plan(detections)
-                tasks[index[0]]["status"]=previous.get("status","ölçüm bekleniyor")
-                if "reading" in previous:
-                    tasks[index[0]]["reading"]=previous["reading"]
+                previous=list(tasks)
+                updated=measurement_plan(detections)
+                for old,new_task in zip(previous,updated):
+                    for key in ("status","reading","measurement_history","part_number",
+                                "part_number_verified_by_user","probe_points","pin_mapping",
+                                "reference_result","reference_source"):
+                        if key in old:
+                            new_task[key]=old[key]
+                tasks[:]=updated
                 feedback.set("Komponent türü teknisyen tarafından doğrulandı.")
                 render()
                 dialog.destroy()
