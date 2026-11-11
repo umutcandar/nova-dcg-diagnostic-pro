@@ -5,6 +5,7 @@ from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk, ImageDraw
 from guided_measurement import measurement_plan, evaluate
+from detection_review import review_detections, ALLOWED
 from model_inference import detect_components
 
 def open_guided_window(parent, image_path=None):
@@ -21,6 +22,7 @@ def open_guided_window(parent, image_path=None):
     win.geometry("1000x820")
     win.minsize(650,550)
     tasks=[]
+    detections=[]
     index=[0]
     photo=tk.Label(win)
     photo.pack(fill="both",expand=True,padx=10,pady=8)
@@ -47,9 +49,10 @@ def open_guided_window(parent, image_path=None):
         picture=ImageTk.PhotoImage(img)
         photo.configure(image=picture)
         photo.image=picture
-    def set_detections(detections):
-        nonlocal tasks
+    def set_detections(items):
+        nonlocal tasks, detections
         try:
+            detections=review_detections(items)
             tasks=measurement_plan(detections)
             for task in tasks:
                 x1,y1,x2,y2=task["bbox_xyxy_pixels"]
@@ -79,6 +82,32 @@ def open_guided_window(parent, image_path=None):
             set_detections(detect_components(image_path,path))
         except (OSError,ValueError,RuntimeError,ImportError) as exc:
             messagebox.showerror("Model taraması başarısız",str(exc),parent=win)
+    def correct_current():
+        if not tasks:
+            messagebox.showinfo("Tespit gerekli","Önce tespitleri yükleyin.",parent=win)
+            return
+        dialog=tk.Toplevel(win)
+        dialog.title("Komponent türünü doğrula")
+        dialog.geometry("390x170")
+        ttk.Label(dialog,text="Model tahminini doğrulayın veya düzeltin:").pack(pady=8)
+        selected=tk.StringVar(value=tasks[index[0]]["component"])
+        ttk.Combobox(dialog,textvariable=selected,values=sorted(ALLOWED),state="readonly").pack(pady=5)
+        def apply():
+            try:
+                new=review_detections(detections,{index[0]:selected.get()})
+                detections[:]=new
+                previous=tasks[index[0]]
+                tasks[:]=measurement_plan(detections)
+                tasks[index[0]]["status"]=previous.get("status","ölçüm bekleniyor")
+                if "reading" in previous:
+                    tasks[index[0]]["reading"]=previous["reading"]
+                feedback.set("Komponent türü teknisyen tarafından doğrulandı.")
+                render()
+                dialog.destroy()
+            except ValueError as exc:
+                messagebox.showerror("Düzeltme hatası",str(exc),parent=dialog)
+        ttk.Button(dialog,text="Onayla",command=apply).pack(pady=8)
+
     def submit():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent tespitlerini yükleyin.",parent=win)
@@ -109,7 +138,7 @@ def open_guided_window(parent, image_path=None):
     controls=ttk.Frame(win)
     controls.pack(pady=10)
     for title,command in [("Tespit JSON aç",import_json),("Model ile tara",scan),
-                          ("Ölçümü değerlendir",submit),("Sonraki komponent",next_task),
+                          ("Türü doğrula / düzelt",correct_current),("Ölçümü değerlendir",submit),("Sonraki komponent",next_task),
                           ("Sonuçları kaydet",save_results)]:
-        ttk.Button(controls,text=title,command=command).pack(side="left",padx=4)
+        ttk.Button(controls,text=title,command=command).pack(side="left",padx=3)
     render()
