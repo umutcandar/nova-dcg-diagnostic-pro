@@ -6,3 +6,4 @@ models/*.pt
 models/*.download
 nova_training/
 pcb_dataset/
+service_jobs/
