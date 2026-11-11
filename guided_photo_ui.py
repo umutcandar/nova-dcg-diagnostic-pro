@@ -15,6 +15,7 @@ from pin_mapping import suggest_probe_pair
 from model_inference import detect_components
 from multimeter_guides import guide_for
 from measurement_history import record_measurement, history_text
+from fault_review import review_queue
 
 def open_guided_window(parent, image_path=None):
     image_path=image_path or filedialog.askopenfilename(parent=parent,filetypes=[("Images","*.png *.jpg *.jpeg *.webp")])
@@ -396,6 +397,31 @@ def open_guided_window(parent, image_path=None):
             messagebox.showinfo("Ölçüm geçmişi","Önce komponent seçin.",parent=win)
             return
         messagebox.showinfo("Komponent ölçüm geçmişi",history_text(tasks[index[0]]),parent=win)
+    def show_fault_review():
+        if not tasks:
+            messagebox.showinfo("Arıza analizi","Önce komponent tespitlerini yükleyin.",parent=win)
+            return
+        dialog=tk.Toplevel(win)
+        dialog.title("Ölçüm bazlı kontrol öncelikleri")
+        dialog.geometry("780x460")
+        ttk.Label(dialog,text="Bu liste kesin arıza teşhisi değildir. Referans ve devre içi etkiler doğrulanmalıdır.",wraplength=730).pack(pady=8)
+        listing=tk.Listbox(dialog,width=110,height=17)
+        listing.pack(fill="both",expand=True,padx=12,pady=8)
+        ranked=review_queue(tasks)
+        for row in ranked:
+            listing.insert("end",f'{row["component"]} | {row["label"]} | {row["reason"]} | {row["measurements"]} ölçüm')
+        def choose():
+            selected=listing.curselection()
+            if not selected:
+                return
+            index[0]=ranked[selected[0]]["index"]
+            value.set("")
+            nominal.set("")
+            tolerance.set("")
+            unit.set("")
+            render()
+            dialog.destroy()
+        ttk.Button(dialog,text="Seçilen komponente git",command=choose).pack(pady=8)
     def compare_reference():
         if not tasks:
             messagebox.showinfo("Tespit gerekli","Önce komponent seçin.",parent=win)
@@ -451,6 +477,6 @@ def open_guided_window(parent, image_path=None):
     controls.pack(pady=10,fill="x")
     for idx,(title,command) in enumerate([("Tespit JSON aç",import_json),("Model ile tara",scan),
                           ("Türü doğrula / düzelt",correct_current),("Yazıyı oku",read_component_code),("Prob noktalarını işaretle",mark_probes),("Fotoğrafa tıklayarak prob seç",click_to_mark_probes),("Datasheet pinlerini eşleştir",map_datasheet_pins),("Ölçümü değerlendir",submit),("Referansla karşılaştır",compare_reference),("Sonraki komponent",next_task),
-                          ("Ölçüm geçmişi",show_history),("Sonuçları kaydet",save_results)]):
+                          ("Ölçüm geçmişi",show_history),("Arıza analizi",show_fault_review),("Sonuçları kaydet",save_results)]):
         ttk.Button(controls,text=title,command=command).grid(row=idx//3,column=idx%3,padx=3,pady=3,sticky="ew")
     render()
