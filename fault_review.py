@@ -10,7 +10,7 @@ def review_queue(tasks):
             reason="Son ölçüm referans dışında; koşulları ve referansı doğrulayın."
         elif "ek ölçüm" in last:
             priority=1
-            reason="Son ölçüm için ek doğrulama gerekiyor."
+            reason="Son ölçüm için ek doğrulama gerekiyor; tek başına sağlamlık kanıtı değildir."
         elif not history:
             priority=2
             reason="Henüz ölçüm kaydı yok."
