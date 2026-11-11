@@ -36,3 +36,10 @@ python3 gui.py
 **Fotoğrafı işaretle:** Kart fotoğrafını seçtikten sonra görüntüde ölçüm noktalarına tıklayın ve numaralı PNG kaydedin. Bu dosya PDF raporunda kullanılır. **PDF servis raporu:** En az bir ölçüm girildikten sonra PDF kaydedin. Fotoğraf işaretleme otomatik komponent tanıma değildir. Fotoğrafın üzerine numaralar çizilir; ölçüm kayıtlarıyla otomatik eşleştirme henüz yoktur.
 
 Mac M1 üzerinde uygulama açılışı ve PDF çıktı testi henüz yapılmadı.
+
+
+## V0.5 - ölçüme dayalı kontrol öncelikleri
+
+**Olası kontrolleri sırala** düğmesi, düşük direnç ve 0 V diyot okuması gibi ölçümler için kontrol önerileri gösterir. Bu **kural tabanlı** özelliktir; yapay zekâ veya kesin komponent teşhisi değildir. Uyarı çıkmaması kartın sağlam olduğunu göstermez. Test komutu: `python3 -m unittest test_guide.py test_diagnosis.py`.
+
+Fotoğraftan otomatik komponent tanıma henüz geliştirilmedi; bunun için doğrulanmış görüntü veri seti ve model değerlendirmesi gerekecek.
