@@ -5,6 +5,7 @@ probe placement. Rules are intentionally conservative; no automatic verdict
 of electrical health is inferred from appearance alone.
 """
 import math
+from measurement_guides import instruction_for
 
 MODES = {
     "Direnç": "Direnç (Ω)",
@@ -29,9 +30,10 @@ def measurement_plan(detections):
         if not all(math.isfinite(v) for v in coords) or coords[2]<=coords[0] or coords[3]<=coords[1]:
             raise ValueError("Invalid bounding box")
         component=label if label in MODES else "Bilinmiyor"
+        suggested_mode, guidance=instruction_for(component)
         tasks.append({"id":index,"component":component,"source_label":label,
-                      "bbox_xyxy_pixels":coords,"mode":MODES.get(component,"Direnç (Ω)"),
-                      "instruction":"Komponenti ve prob uçlarını doğrulayın; enerji kesilmiş ve kart deşarj edilmiş olmalı.",
+                      "bbox_xyxy_pixels":coords,"mode":suggested_mode,
+                      "instruction":guidance+" Kart enerjisiz ve deşarj edilmiş olmalı.",
                       "confidence":detection.get("confidence"),
                       "status":"ölçüm bekleniyor"})
     return tasks
