@@ -1,0 +1,26 @@
+name: Core measurement regression tests
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'guided_photo_ui.py'
+      - 'guided_measurement.py'
+      - 'measurement_history.py'
+      - 'fault_review.py'
+      - 'multimeter_guides.py'
+      - 'test_*.py'
+      - '.github/workflows/core-measurement-tests.yml'
+  pull_request:
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile sources
+        run: python -m compileall -q .
+      - name: Run measurement workflow tests
+        run: python -m unittest -v test_measurement_workflow test_multimeter_guides
