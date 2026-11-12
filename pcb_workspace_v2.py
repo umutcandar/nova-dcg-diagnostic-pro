@@ -22,6 +22,7 @@ from multimeter_guides import guide_for
 from pcb_viewport import Viewport
 from component_labeler import launch_labeler
 from session_store import save_autosave, restore_autosave
+from photo_drop import select_dropped_photo
 
 BG = "#0B1220"
 CARD = "#131D2D"
@@ -39,13 +40,28 @@ FONT = "Helvetica"
 
 
 def action(parent, text, command, color=CARD2, fg=TEXT, width=None):
-    return tk.Button(
-        parent, text=text, command=command, fg=fg, bg=color,
-        activebackground=BLUE, activeforeground="white",
-        borderwidth=0, highlightthickness=0, relief="flat",
-        cursor="hand2", padx=12, pady=9, font=(FONT, 11, "bold"),
-        width=width,
+    """Themed action surface. macOS renders native tk.Button in bright Aqua,
+    which can make custom white foreground text completely unreadable.
+    A labeled, keyboard-accessible click surface respects background colors.
+    """
+    widget = tk.Label(
+        parent, text=text, fg=fg, bg=color,
+        borderwidth=0, highlightthickness=1, highlightbackground=LINE,
+        relief="flat", cursor="hand2", takefocus=1,
+        padx=14, pady=10, font=(FONT, 11, "bold")
     )
+    if width is not None:
+        widget.configure(width=width)
+    hover = "#4B9BF9" if color == BLUE else "#2B415F"
+    def activate(_event=None):
+        widget.focus_set()
+        command()
+    widget.bind("<Button-1>", activate)
+    widget.bind("<Return>", activate)
+    widget.bind("<space>", activate)
+    widget.bind("<Enter>", lambda _e: widget.configure(bg=hover))
+    widget.bind("<Leave>", lambda _e: widget.configure(bg=color))
+    return widget
 
 
 def section(parent, text):
@@ -77,6 +93,8 @@ class Workspace:
         self.viewport = Viewport()
         self.picture = None
         self.image_status = tk.StringVar(value="PCB fotoğrafını yükleyerek otomatik taramayı başlatın.")
+        self.drop_hint = tk.StringVar(value="Fotoğrafı Finder'dan sürükleyip bu alana bırakın  •  veya Fotoğraf değiştir")
+        self.drop_enabled = False
         self.status = tk.StringVar(value="HAZIR  •  Model önerileri kesin arıza teşhisi değildir")
         self.detection_count = tk.StringVar(value="0 komponent")
         self.zoom_text = tk.StringVar(value="100%")
@@ -105,6 +123,7 @@ class Workspace:
         self._closed = False
         self._set_theme()
         self._build()
+        self._setup_drag_drop()
         self.root.bind("<Control-o>", lambda _e: self.choose_photo())
         self.root.bind("<Control-s>", lambda _e: self.save_session())
         self._poll_job = self.root.after(150, self._poll)
@@ -120,7 +139,13 @@ class Workspace:
                         relief="flat", font=(FONT, 10, "bold"), padding=9)
         style.map("Nova.Treeview", background=[("selected", "#245F96")],
                   foreground=[("selected", "white")])
-        style.configure("Nova.TCombobox", padding=7)
+        style.configure("Nova.TCombobox", padding=7, background=CARD2,
+                        fieldbackground=CARD2, foreground=TEXT, arrowcolor=CYAN)
+        style.map("Nova.TCombobox",
+                  fieldbackground=[("readonly", CARD2)],
+                  foreground=[("readonly", TEXT)],
+                  selectbackground=[("readonly", CARD2)],
+                  selectforeground=[("readonly", TEXT)])
         style.configure("Nova.Horizontal.TProgressbar", troughcolor=BG, background=CYAN,
                         borderwidth=0)
 
@@ -188,8 +213,10 @@ class Workspace:
         self.canvas.bind("<ButtonPress-1>", self._start_drag)
         self.canvas.bind("<B1-Motion>", self._drag)
         self.canvas.bind("<ButtonRelease-1>", self._release_drag)
-        tk.Label(center, text="Tekerlek: yakınlaştır  •  Sürükle: gezin  •  Kutuyu seç: Fluke rehberi",
-                 fg=MUTED, bg=CARD, font=(FONT, 10)).pack(fill="x", pady=(7, 1))
+        tk.Label(center, textvariable=self.drop_hint, fg=CYAN, bg=CARD,
+                 font=(FONT, 11, "bold"), anchor="w").pack(fill="x", padx=7, pady=(8, 2))
+        tk.Label(center, text="Tekerlek: yakınlaştır  •  Fareyle sürükle: fotoğrafta gezin  •  Kutuyu seç: Fluke",
+                 fg=MUTED, bg=CARD, font=(FONT, 10)).pack(fill="x", pady=(1, 2))
 
         right = tk.Frame(body, bg=CARD, width=340)
         right.grid(row=0, column=2, sticky="nsew")
@@ -282,6 +309,54 @@ class Workspace:
         if self.image and old_w > 0 and old_h > 0:
             self.viewport.pan((event.width - old_w)/2, (event.height - old_h)/2)
         self._schedule_render()
+
+    def _setup_drag_drop(self):
+        """Register native file-drop listeners for Finder photos when tkdnd is active."""
+        try:
+            from tkinterdnd2 import DND_FILES
+        except ImportError:
+            self.drop_hint.set("Sürükle-bırak için 'python -m pip install -r requirements.txt' çalıştırın.")
+            return
+        if not hasattr(self.canvas, "drop_target_register"):
+            self.drop_hint.set("Sürükle-bırak bu Tk oturumunda etkin değil; üstten fotoğraf seçebilirsiniz.")
+            return
+        try:
+            for target in (self.canvas, self.root):
+                target.drop_target_register(DND_FILES)
+                target.dnd_bind("<<DropEnter>>", self._on_drop_enter)
+                target.dnd_bind("<<DropLeave>>", self._on_drop_leave)
+                target.dnd_bind("<<Drop>>", self._on_drop)
+            self.drop_enabled = True
+        except (tk.TclError, RuntimeError) as exc:
+            self.drop_hint.set("Sürükle-bırak yüklenemedi: " + str(exc))
+
+    def _on_drop_enter(self, _event):
+        self.canvas.configure(bg="#193149")
+        self.drop_hint.set("FOTOĞRAFI BIRAK  •  PNG, JPG, WebP, BMP veya TIFF")
+        return "copy"
+
+    def _on_drop_leave(self, _event):
+        self.canvas.configure(bg=CANVAS)
+        self._reset_drop_hint()
+
+    def _reset_drop_hint(self):
+        self.drop_hint.set("Fotoğrafı Finder'dan buraya bırakın  •  veya üstten Fotoğraf değiştir")
+
+    def _on_drop(self, event):
+        """Open a local dropped image and trigger scan; never fetch remote URLs."""
+        self.canvas.configure(bg=CANVAS)
+        try:
+            path = select_dropped_photo(event.data, self.root.tk.splitlist)
+        except ValueError as exc:
+            self.status.set("DOSYA BIRAKMA HATASI  •  " + str(exc))
+            self._reset_drop_hint()
+            return "refuse_drop"
+        if not self.open_photo(path):
+            self._reset_drop_hint()
+            return "refuse_drop"
+        self._reset_drop_hint()
+        self.status.set("FOTOĞRAF ALINDI  •  Otomatik komponent taraması başlıyor")
+        return "copy"
 
     def open_labeler(self):
         """Deliberate technician labeling for training, separate from predictions."""
@@ -436,7 +511,12 @@ class Workspace:
         self.component_title.set(f"{index + 1:02d}  /  {task['source_label']}")
         conf = task.get("confidence")
         confidence = f"{conf:.0%}" if isinstance(conf, (int,float)) else "belirtilmedi"
-        self.component_meta.set(f"Model güveni: {confidence}  ·  Görsel tespit; doğrulanmadı")
+        if isinstance(conf, (int,float)) and conf < 0.5:
+            self.component_meta.set(
+                f"DÜŞÜK GÜVEN  •  {confidence}  •  Tip doğrulanmadan ölçüm yapmayın."
+            )
+        else:
+            self.component_meta.set(f"Model güveni: {confidence}  ·  Görsel tespit; doğrulanmadı")
         self.class_choice.set(task["component"])
         self.refresh_guide()
         self.measure_result.set(
@@ -629,11 +709,14 @@ class Workspace:
         self.canvas.delete("all")
         if self.image is None:
             w, h = self.canvas.winfo_width(), self.canvas.winfo_height()
-            self.canvas.create_text(w/2, h/2-18, text="PCB FOTOĞRAFINI YÜKLEYİN",
-                                    fill=TEXT, font=(FONT, 18, "bold"))
-            self.canvas.create_text(w/2, h/2+20,
-                                    text="Fotoğraf seçildiğinde analiz kendiliğinden başlayacak.",
-                                    fill=MUTED, font=(FONT, 11))
+            self.canvas.create_text(w/2, h/2-32, text="FOTOĞRAFI BURAYA BIRAKIN",
+                                    fill=CYAN, font=(FONT, 19, "bold"))
+            self.canvas.create_text(w/2, h/2+10,
+                                    text="Finder'dan sürükle-bırak ya da Fotoğraf değiştir seç.",
+                                    fill=TEXT, font=(FONT, 12))
+            self.canvas.create_text(w/2, h/2+38,
+                                    text="Yüklediğiniz görüntü cihazınızda yerel analiz edilir.",
+                                    fill=MUTED, font=(FONT, 10))
             return
         bounds = self.viewport.visible_crop()
         if bounds:
@@ -693,8 +776,18 @@ class Workspace:
 
 
 def main():
-    root = tk.Tk()
-    Workspace(root)
+    # Native Finder drop events require a Tk window initialized with tkdnd.
+    # Keep the regular photo picker usable if tkdnd cannot load.
+    drop_error = None
+    try:
+        from tkinterdnd2 import TkinterDnD
+        root = TkinterDnD.Tk()
+    except (ImportError, RuntimeError, tk.TclError) as exc:
+        drop_error = str(exc)
+        root = tk.Tk()
+    app = Workspace(root)
+    if drop_error:
+        app.drop_hint.set("Sürükle-bırak devre dışı: " + drop_error)
     root.mainloop()
 
 
