@@ -35,9 +35,13 @@ class V2WorkspaceTests(unittest.TestCase):
         self.restore_patch = patch("pcb_workspace_v2.restore_autosave", return_value=0)
         self.save_patch.start()
         self.restore_patch.start()
+        self.audit_patch = patch("pcb_workspace_v2.save_local_audit",
+            return_value=Path(self.temp.name) / "recognition.json")
+        self.audit_patch.start()
 
     def tearDown(self):
         self.app.close()
+        self.audit_patch.stop()
         self.restore_patch.stop()
         self.save_patch.stop()
         self.thread_patch.stop()
@@ -123,6 +127,21 @@ class V2WorkspaceTests(unittest.TestCase):
         self.assertEqual(len(controls),1)
         self.assertNotEqual(controls[0].cget("foreground"), controls[0].cget("background"))
         self.assertEqual(controls[0].cget("background"), "#3C86F5")
+
+    def test_detected_candidates_receive_evidence_only_audit(self):
+        rows = [
+            {"label": "Entegre", "confidence": .44, "bbox_xyxy_pixels": [10, 20, 65, 85]},
+            {"label": "LED", "confidence": .42, "bbox_xyxy_pixels": [120, 50, 158, 70]},
+        ]
+        with patch("pcb_workspace_v2.automatic_detect", return_value=rows):
+            self.app.open_photo(self.photo)
+            self.wait_for_detection()
+        report = self.app.recognition_report
+        self.assertEqual(report["detected_candidates"], 2)
+        self.assertEqual(report["requires_review"], 2)
+        self.assertFalse(report["accuracy_evaluated"])
+        self.assertIn("2 düşük güvenli", self.app.image_status.get())
+        self.audit_patch.assert_called()
 
     def test_reference_requires_verified_values(self):
         items=[{"label":"Direnç","confidence":.9,"bbox_xyxy_pixels":[15,15,75,50]}]
