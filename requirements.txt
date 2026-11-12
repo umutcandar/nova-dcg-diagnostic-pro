@@ -2,3 +2,5 @@ Pillow>=10,<13
 reportlab>=4,<5
 # Trained PCB detector; first installation may take time on Apple Silicon.
 ultralytics>=8.3,<9
+# Native Mac Finder/Windows/Linux file drag and drop for the V2 workspace.
+tkinterdnd2>=0.4.3,<1
