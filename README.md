@@ -12,6 +12,16 @@ python -m pip install -r requirements.txt
 python gui.py
 ```
 
+**Mac Finder sürükle-bırak:** İlk kurulumda `python -m pip install -r requirements.txt`
+komutu `tkinterdnd2` paketini de yükler. Sonra Finder'dan bir JPG/PNG/WebP/BMP/TIFF
+dosyasını doğrudan ortadaki **PCB GÖRÜNÜMÜ** alanına sürükleyip bırakın.
+Dosya adı boşluk içerebilir. Yerel fotoğraf hemen açılır ve model taraması
+otomatik başlar. Sürükle-bırak Mac'in Tk kurulumunda yüklenemiyorsa program
+bunu bildirir; **Fotoğraf değiştir** düğmesi çalışmaya devam eder.
+Mac'teki bazı Tk sürümlerinin beyaz sistem düğmesi problemine karşı
+V2 kontrolleri yüksek kontrastlı, klavyeyle etkinleştirilebilen koyu
+düğme yüzeyleri olarak çizilir.
+
 ## V2 araçları
 
 - **Fotoğraf değiştir:** Üst araç çubuğundan yeni JPG/PNG/WebP kart seç.
