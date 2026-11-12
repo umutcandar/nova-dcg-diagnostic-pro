@@ -184,10 +184,23 @@ class Workspace:
         tk.Label(center, text="Tekerlek: yakınlaştır  •  Sürükle: gezin  •  Kutuyu seç: Fluke rehberi",
                  fg=MUTED, bg=CARD, font=(FONT, 10)).pack(fill="x", pady=(7, 1))
 
-        right = tk.Frame(body, bg=CARD, width=340, padx=16, pady=13)
+        right = tk.Frame(body, bg=CARD, width=340)
         right.grid(row=0, column=2, sticky="nsew")
         right.grid_propagate(False)
-        self._build_inspector(right)
+        inspector_canvas = tk.Canvas(right, bg=CARD, highlightthickness=0, bd=0)
+        inspector_canvas.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(right, orient="vertical", command=inspector_canvas.yview)
+        scrollbar.pack(side="right", fill="y")
+        inspector_canvas.configure(yscrollcommand=scrollbar.set)
+        inspector = tk.Frame(inspector_canvas, bg=CARD, padx=16, pady=13)
+        window_id = inspector_canvas.create_window((0, 0), window=inspector, anchor="nw")
+        inspector.bind("<Configure>", lambda _e: inspector_canvas.configure(
+            scrollregion=inspector_canvas.bbox("all")
+        ))
+        inspector_canvas.bind("<Configure>", lambda e: inspector_canvas.itemconfigure(
+            window_id, width=e.width
+        ))
+        self._build_inspector(inspector)
 
         footer = tk.Frame(self.root, bg=BG, padx=20, pady=8)
         footer.pack(fill="x")
@@ -360,7 +373,9 @@ class Workspace:
             self.root.after(150, self._poll)
 
     def _refresh_parts(self):
-        self.parts.delete(*self.parts.get_children())
+        existing = self.parts.get_children()
+        if existing:
+            self.parts.delete(*existing)
         for idx, task in enumerate(self.tasks):
             confidence = task.get("confidence")
             score = f"{confidence:.0%}" if isinstance(confidence, (int,float)) else "—"
