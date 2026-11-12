@@ -38,6 +38,18 @@ class ViewportTests(unittest.TestCase):
         self.assertLessEqual(crop[2],4000)
         self.assertLess(crop[2]-crop[0],4000)
 
+    def test_fill_mode_larger_than_fit_on_wide_photo(self):
+        v=Viewport(image_width=1400,image_height=700,canvas_width=800,canvas_height=600)
+        fit=v.fit()
+        fill=v.fill()
+        self.assertGreater(fill,fit)
+        x1,y1=v.to_canvas(0,0)
+        x2,y2=v.to_canvas(1400,700)
+        self.assertLessEqual(x1,0)
+        self.assertGreaterEqual(x2,800)
+        self.assertLessEqual(y1,0)
+        self.assertGreaterEqual(y2,600)
+
     def test_click_finds_smallest_box(self):
         v=Viewport(image_width=1000,image_height=600,canvas_width=1000,canvas_height=600)
         boxes=[[20,20,300,300],[70,70,95,95]]
