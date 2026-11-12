@@ -41,7 +41,7 @@ Yerel M1 eğitimi (doğrulanmış etiketli veri gerektiğinden uzun sürebilir):
 python train_v2_pipeline.py /path/to/annotations /path/to/output --base-model models/yolov8s_pcb_best.pt --epochs 70 --imgsz 960 --batch 4 --device mps
 ```
 
-Pipeline farklı fiziksel kartları train / validation / test arasında ayırır; eğitimden sonra görülmemiş test kartları için metrikler kaydedilir. **Şu anda yeni V2 modelinin eğitimi tamamlanmadı; gerçek ve doğrulanmış PCB fotoğraflarına ihtiyaç var.**
+Pipeline farklı fiziksel kartları train / validation / test arasında ayırır; eğitimden sonra görülmemiş test kartları için metrikler kaydedilir. Test metrikleri ve 14 sınıf eşleşmesi doğrulanırsa eğitilmiş `best.pt` yerel `~/.nova_dcg/trained_model.json` kayıt dosyasında SHA256 değeriyle kaydedilir; **sonraki açılışta otomatik seçilir**. Kayıt veya dosya sonradan değiştirilirse güvenlik için açılmaz. **Şu anda yeni V2 modelinin eğitimi tamamlanmadı; gerçek ve doğrulanmış PCB fotoğraflarına ihtiyaç var.**
 
 ---
 # NOVA DCG Diagnostic Pro — otomatik fotoğraf akışı (V1.5)
