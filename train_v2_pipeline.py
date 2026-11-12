@@ -14,6 +14,7 @@ from pathlib import Path
 
 from dataset import CLASSES, validate_annotation
 from prepare_dataset import prepare
+from model_registry import register_trained_model
 
 
 def audit_annotations(source_dir):
@@ -128,6 +129,21 @@ def train_verified(
         "parameters": {key: str(value) for key,value in options.items()},
         "warning": "Unseen-board benchmark and human error review required before service claims.",
     }
+    (out / "training_report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    if not metrics:
+        raise RuntimeError("Gerçek test metrikleri üretilemedi; model otomatik kullanılmayacak.")
+    actual_names = model.names
+    actual_classes = (
+        [actual_names[i] for i in range(len(actual_names))]
+        if isinstance(actual_names, dict) else list(actual_names)
+    )
+    if actual_classes != list(CLASSES):
+        raise RuntimeError("Eğitilen modelin sınıf adları 14 sınıflı veri kümesine uymuyor.")
+    checkpoint = Path(model.trainer.best).resolve()
+    registry = register_trained_model(checkpoint, list(CLASSES))
+    report["registered_model"] = registry["weights"]
     (out / "training_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
