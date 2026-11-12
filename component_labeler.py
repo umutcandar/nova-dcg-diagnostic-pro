@@ -1,11 +1,12 @@
 """Manual PCB component region labeling. No automatic image recognition."""
 import json
 from pathlib import Path
+from dataset import CLASSES
 from PIL import Image, ImageTk, ImageDraw
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-COMPONENTS = ["Direnç", "Kondansatör", "Diyot", "Entegre", "Transistör", "Bobin", "Konnektör", "Bilinmiyor"]
+COMPONENTS = list(CLASSES)
 
 def normalized_box(x1,y1,x2,y2,width,height):
     if width <= 0 or height <= 0:
@@ -56,6 +57,9 @@ def launch_labeler(parent, image_path):
     canvas.bind("<ButtonPress-1>",down)
     canvas.bind("<B1-Motion>",move)
     canvas.bind("<ButtonRelease-1>",up)
+    confirmed=tk.BooleanVar(value=False)
+    ttk.Checkbutton(toolbar, text="Etiketleri tek tek kontrol ettim", variable=confirmed).pack(side="left",padx=8)
+
     def save():
         if not regions:
             messagebox.showinfo("Boş","Önce en az bir parça işaretleyin.",parent=win)
@@ -63,10 +67,11 @@ def launch_labeler(parent, image_path):
         path=filedialog.asksaveasfilename(parent=win,defaultextension=".json",filetypes=[("JSON","*.json")])
         if not path:
             return
-        data={"schema_version":1,"image":str(Path(image_path).resolve()),
+        data={"schema_version":2,"image":str(Path(image_path).resolve()),
               "image_width":source.width,"image_height":source.height,
               "coordinate_system":"xyxy_normalized","regions":regions,
-              "note":"Labels are manual and not automatically verified."}
+              "technician_verified":confirmed.get(),
+              "note":"Labels were drawn manually; trainer requires explicit verified metadata."}
         Path(path).write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
         messagebox.showinfo("Kaydedildi",f"{len(regions)} bölge kaydedildi.",parent=win)
     ttk.Button(toolbar,text="Etiketleri JSON kaydet",command=save).pack(side="right")
