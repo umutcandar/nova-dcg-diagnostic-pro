@@ -5,7 +5,8 @@ No automatic detection or model training is performed by this module.
 import json
 from pathlib import Path
 
-CLASSES = ["Direnç", "Kondansatör", "Diyot", "Entegre", "Transistör", "Bobin", "Konnektör", "Bilinmiyor"]
+CLASSES = ["Direnç", "Kondansatör", "Diyot", "Entegre", "Transistör", "Bobin", "Konnektör", "Bilinmiyor",
+           "MOSFET", "LED", "Anahtar", "Header", "Kristal", "Test noktası"]
 
 def validate_annotation(data):
     if data.get("coordinate_system") != "xyxy_normalized":
