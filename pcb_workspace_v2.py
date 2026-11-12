@@ -199,6 +199,7 @@ class Workspace:
         tk.Label(tools, text="PCB GÖRÜNÜMÜ", fg=TEXT, bg=CARD,
                  font=(FONT, 12, "bold")).pack(side="left", padx=7)
         action(tools, "Sığdır", self.fit_image).pack(side="right", padx=3)
+        action(tools, "Doldur", self.fill_image).pack(side="right", padx=3)
         action(tools, "−", lambda: self.zoom_center(1 / 1.25), width=2).pack(side="right", padx=3)
         action(tools, "+", lambda: self.zoom_center(1.25), width=2).pack(side="right", padx=3)
         tk.Label(tools, textvariable=self.zoom_text, fg=CYAN, bg=CARD,
@@ -246,7 +247,7 @@ class Workspace:
                  font=(FONT, 12, "bold")).pack(anchor="w", pady=(0, 10))
         tk.Label(panel, textvariable=self.component_title, fg=TEXT, bg=CARD,
                  anchor="w", font=(FONT, 17, "bold"), wraplength=305).pack(fill="x")
-        note(panel, self.component_meta, MUTED)
+        self.component_meta_label = note(panel, self.component_meta, MUTED)
         section(panel, "KOMPONENT TÜRÜ")
         self.class_menu = ttk.Combobox(
             panel, style="Nova.TCombobox", textvariable=self.class_choice,
@@ -469,7 +470,14 @@ class Workspace:
                     self._schedule_render()
                     if self.tasks:
                         self.select_index(0)
-                    self.image_status.set(f"{len(self.tasks)} model adayı bulundu (henüz doğrulanmadı).")
+                    low_count = sum(
+                        1 for t in self.tasks
+                        if isinstance(t.get("confidence"), (int,float)) and t["confidence"] < .5
+                    )
+                    self.image_status.set(
+                        f"{len(self.tasks)} aday tespit edildi; {low_count} düşük güvenli. "
+                        "Eksik veya yanlış parçalar için eğitim verisi gereklidir."
+                    )
                     if not self.status.get().startswith("Ölçüm geçmişi"):
                         self.status.set("TARAMA BİTTİ  •  Parçayı seçerek Fluke modunu görüntüleyin")
         except queue.Empty:
@@ -481,12 +489,14 @@ class Workspace:
         existing = self.parts.get_children()
         if existing:
             self.parts.delete(*existing)
+        self.parts.tag_configure("low", foreground=AMBER)
         for idx, task in enumerate(self.tasks):
             confidence = task.get("confidence")
             score = f"{confidence:.0%}" if isinstance(confidence, (int,float)) else "—"
+            low = isinstance(confidence,(int,float)) and confidence < .5
             self.parts.insert("", "end", iid=str(idx), values=(
                 idx + 1, task["source_label"], score
-            ))
+            ), tags=("low",) if low else ())
         self.detection_count.set(f"{len(self.tasks)} komponent adayı")
 
     def _select_tree(self, _event=None):
@@ -511,12 +521,18 @@ class Workspace:
         self.component_title.set(f"{index + 1:02d}  /  {task['source_label']}")
         conf = task.get("confidence")
         confidence = f"{conf:.0%}" if isinstance(conf, (int,float)) else "belirtilmedi"
-        if isinstance(conf, (int,float)) and conf < 0.5:
+        is_low = isinstance(conf, (int,float)) and conf < 0.5
+        if task.get("technician_verified_type"):
+            self.component_meta.set("Komponent tipi teknisyen tarafından doğrulandı; elektriksel sağlamlık bilinmiyor.")
+            self.component_meta_label.configure(fg=GREEN)
+        elif is_low:
             self.component_meta.set(
                 f"DÜŞÜK GÜVEN  •  {confidence}  •  Tip doğrulanmadan ölçüm yapmayın."
             )
+            self.component_meta_label.configure(fg=AMBER)
         else:
             self.component_meta.set(f"Model güveni: {confidence}  ·  Görsel tespit; doğrulanmadı")
+            self.component_meta_label.configure(fg=MUTED)
         self.class_choice.set(task["component"])
         self.refresh_guide()
         self.measure_result.set(
@@ -527,6 +543,7 @@ class Workspace:
     def _clear_selection(self):
         self.component_title.set("Komponent seçilmedi")
         self.component_meta.set("Fotoğraf yüklendiğinde komponentler otomatik taranır.")
+        self.component_meta_label.configure(fg=MUTED)
         self.class_choice.set("Bilinmiyor")
         for variable in (self.mode_text, self.setup_text, self.probes_text, self.next_text):
             variable.set("—")
@@ -546,6 +563,8 @@ class Workspace:
         task["instruction"] = description + " Kart enerjisiz ve deşarj edilmiş olmalı."
         task["technician_verified_type"] = True
         self.component_title.set(f"{self.selected + 1:02d}  /  {chosen}")
+        self.component_meta.set("Tip teknisyen tarafından doğrulandı; elektriksel sağlamlık bilinmiyor.")
+        self.component_meta_label.configure(fg=GREEN)
         self._refresh_parts()
         self.parts.selection_set(str(self.selected))
         self.refresh_guide()
@@ -657,6 +676,11 @@ class Workspace:
     def fit_image(self):
         if self.image:
             self.viewport.fit()
+            self._schedule_render()
+
+    def fill_image(self):
+        if self.image:
+            self.viewport.fill()
             self._schedule_render()
 
     def zoom_center(self, factor):
