@@ -6,6 +6,8 @@ on:
       - 'gui.py'
       - 'pcb_workspace_v2.py'
       - 'photo_drop.py'
+      - 'recognition_audit.py'
+      - 'test_recognition_audit.py'
       - 'test_photo_drop.py'
       - 'pcb_viewport.py'
       - 'test_workspace_v2.py'
@@ -32,4 +34,4 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q .
       - name: Test photo-triggered analysis and failure messaging
-        run: xvfb-run -a python -m unittest -v test_gui_auto test_workspace_v2 test_pcb_viewport test_photo_drop
+        run: xvfb-run -a python -m unittest -v test_gui_auto test_workspace_v2 test_pcb_viewport test_photo_drop test_recognition_audit
