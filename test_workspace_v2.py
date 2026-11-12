@@ -25,7 +25,7 @@ class V2WorkspaceTests(unittest.TestCase):
         self.root.update()
 
     def tearDown(self):
-        self.root.destroy()
+        self.app.close()
         self.temp.cleanup()
 
     def wait_for_detection(self,timeout=5):
