@@ -7,6 +7,7 @@ import tkinter as tk
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from PIL import Image
 from pcb_workspace_v2 import Workspace
@@ -23,8 +24,14 @@ class V2WorkspaceTests(unittest.TestCase):
         self.root.geometry("1300x800")
         self.app=Workspace(self.root)
         self.root.update()
+        # In GUI tests dispatch the mocked inference worker immediately;
+        # production keeps the real asynchronous worker thread.
+        self.thread_patch = patch("pcb_workspace_v2.threading.Thread",
+            side_effect=lambda target, daemon: SimpleNamespace(start=target))
+        self.thread_patch.start()
 
     def tearDown(self):
+        self.thread_patch.stop()
         self.app.close()
         self.temp.cleanup()
 
