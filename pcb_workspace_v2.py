@@ -98,11 +98,15 @@ class Workspace:
         self._mouse_down = None
         self._dragged = False
         self._render_pending = False
+        self._render_job = None
+        self._poll_job = None
+        self._closed = False
         self._set_theme()
         self._build()
         self.root.bind("<Control-o>", lambda _e: self.choose_photo())
         self.root.bind("<Control-s>", lambda _e: self.save_session())
-        self.root.after(150, self._poll)
+        self._poll_job = self.root.after(150, self._poll)
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def _set_theme(self):
         style = ttk.Style(self.root)
@@ -341,6 +345,9 @@ class Workspace:
         threading.Thread(target=work, daemon=True).start()
 
     def _poll(self):
+        if self._closed:
+            return
+        self._poll_job = None
         try:
             while True:
                 generation, kind, value = self._events.get_nowait()
@@ -369,8 +376,8 @@ class Workspace:
                     self.status.set("TARAMA BİTTİ  •  Parçayı seçerek Fluke modunu görüntüleyin")
         except queue.Empty:
             pass
-        if self.root.winfo_exists():
-            self.root.after(150, self._poll)
+        if not self._closed and self.root.winfo_exists():
+            self._poll_job = self.root.after(150, self._poll)
 
     def _refresh_parts(self):
         existing = self.parts.get_children()
@@ -576,11 +583,14 @@ class Workspace:
         self._mouse_down = None
 
     def _schedule_render(self):
-        if not self._render_pending:
+        if not self._closed and not self._render_pending:
             self._render_pending = True
-            self.root.after_idle(self._render)
+            self._render_job = self.root.after_idle(self._render)
 
     def _render(self):
+        if self._closed:
+            return
+        self._render_job = None
         self._render_pending = False
         self.canvas.delete("all")
         if self.image is None:
@@ -629,6 +639,22 @@ class Workspace:
                 )
                 self.canvas.tag_lower(tag, text_id)
         self.zoom_text.set(f"{self.viewport.scale*100:.0f}%")
+
+
+    def close(self):
+        """Prevent orphaned Tk callbacks when the application exits."""
+        if self._closed:
+            return
+        self._closed = True
+        self._scan_number += 1  # Discard late background results.
+        self.progress.stop()
+        for job in (self._poll_job, self._render_job):
+            if job is not None:
+                try:
+                    self.root.after_cancel(job)
+                except tk.TclError:
+                    pass
+        self.root.destroy()
 
 
 def main():
