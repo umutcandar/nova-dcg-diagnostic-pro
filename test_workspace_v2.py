@@ -20,7 +20,9 @@ class V2WorkspaceTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory()
         self.photo=Path(self.temp.name)/"pcb.png"
         Image.new("RGB",(900,600),"#184b3b").save(self.photo)
-        self.root=tk.Tk()
+        # The real application's root must provide native drop handlers.
+        from tkinterdnd2 import TkinterDnD
+        self.root=TkinterDnD.Tk()
         self.root.geometry("1300x800")
         self.app=Workspace(self.root)
         self.root.update()
@@ -88,6 +90,39 @@ class V2WorkspaceTests(unittest.TestCase):
             self.wait_for_detection()
         self.assertEqual(self.app.image.size,(420,420))
         self.assertEqual(len(self.app.tasks),0)
+
+    def test_finder_drop_opens_new_photo_and_runs_detector(self):
+        self.assertTrue(self.app.drop_enabled, "Native drag and drop must be initialized")
+        dropped = Path(self.temp.name) / "Finder Foto 2026.png"
+        Image.new("RGB", (640, 420), "#206b52").save(dropped)
+        detections = [{"label":"LED", "source_label":"LED",
+                       "confidence":0.81, "bbox_xyxy_pixels":[30, 40, 95, 90]}]
+        with patch("pcb_workspace_v2.automatic_detect", return_value=detections):
+            outcome = self.app._on_drop(SimpleNamespace(data="{" + str(dropped) + "}"))
+            self.wait_for_detection()
+        self.assertEqual(outcome, "copy")
+        self.assertEqual(Path(self.app.image_path), dropped.resolve())
+        self.assertEqual(len(self.app.tasks), 1)
+        self.assertIn("Diyot", self.app.mode_text.get())
+
+    def test_invalid_drop_reports_error_without_changing_photo(self):
+        with patch("pcb_workspace_v2.automatic_detect", return_value=[]):
+            self.app.open_photo(self.photo)
+            self.wait_for_detection()
+        before = self.app.image_path
+        outcome = self.app._on_drop(SimpleNamespace(data="{/tmp/nonexistent PCB.png}"))
+        self.assertEqual(outcome, "refuse_drop")
+        self.assertEqual(self.app.image_path, before)
+        self.assertIn("DOSYA BIRAKMA HATASI", self.app.status.get())
+
+    def test_header_actions_have_readable_dark_theme(self):
+        header = self.root.winfo_children()[0]
+        labels = [item for item in header.winfo_children()
+                  if isinstance(item, tk.Label)]
+        controls = [widget for widget in labels if widget.cget("text") == "Fotoğraf değiştir"]
+        self.assertEqual(len(controls),1)
+        self.assertNotEqual(controls[0].cget("foreground"), controls[0].cget("background"))
+        self.assertEqual(controls[0].cget("background"), "#3C86F5")
 
     def test_reference_requires_verified_values(self):
         items=[{"label":"Direnç","confidence":.9,"bbox_xyxy_pixels":[15,15,75,50]}]
