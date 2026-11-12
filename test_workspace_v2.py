@@ -37,7 +37,7 @@ class V2WorkspaceTests(unittest.TestCase):
         self.restore_patch.start()
         self.audit_patch = patch("pcb_workspace_v2.save_local_audit",
             return_value=Path(self.temp.name) / "recognition.json")
-        self.audit_patch.start()
+        self.audit_mock = self.audit_patch.start()
 
     def tearDown(self):
         self.app.close()
@@ -141,7 +141,7 @@ class V2WorkspaceTests(unittest.TestCase):
         self.assertEqual(report["requires_review"], 2)
         self.assertFalse(report["accuracy_evaluated"])
         self.assertIn("2 düşük güvenli", self.app.image_status.get())
-        self.audit_patch.assert_called()
+        self.audit_mock.assert_called()
 
     def test_reference_requires_verified_values(self):
         items=[{"label":"Direnç","confidence":.9,"bbox_xyxy_pixels":[15,15,75,50]}]
