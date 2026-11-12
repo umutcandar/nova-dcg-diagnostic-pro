@@ -4,10 +4,17 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import base64
 import json
+import os
+import secrets
+import logging
 
 from PIL import Image, ImageOps
 
-HOST, PORT = "127.0.0.1", 8765
+HOST = os.environ.get("NOVA_HOST", "127.0.0.1")
+PORT = int(os.environ.get("PORT", "8765"))
+AUTH_USER = os.environ.get("NOVA_AUTH_USER", "")
+AUTH_PASSWORD = os.environ.get("NOVA_AUTH_PASSWORD", "")
+logging.basicConfig(level=logging.INFO)
 MAX_BODY = 16 * 1024 * 1024
 PAGE = r'''<!doctype html><html lang="tr"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -69,6 +76,24 @@ catch(e){$('status').textContent='Analiz hatası: '+e.message}};reader.readAsDat
 
 
 class Handler(BaseHTTPRequestHandler):
+    def require_auth(self):
+        header = self.headers.get("Authorization", "")
+        valid = False
+        if header.startswith("Basic ") and AUTH_USER and AUTH_PASSWORD:
+            try:
+                user, password = base64.b64decode(header[6:], validate=True).decode().split(":", 1)
+                valid = secrets.compare_digest(user, AUTH_USER) and secrets.compare_digest(password, AUTH_PASSWORD)
+            except (ValueError, UnicodeError):
+                pass
+        if valid:
+            return False
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="NOVA DCG Private"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
     def send(self, code, obj, mime="application/json"):
         payload = obj.encode("utf-8") if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -79,11 +104,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if self.require_auth():
+            return
         if self.path == "/":
             return self.send(200, PAGE, "text/html")
         self.send(404, {"error": "Not found"})
 
     def do_POST(self):
+        if self.require_auth():
+            return
         if self.path != "/analyze":
             return self.send(404, {"error": "Not found"})
         try:
@@ -112,10 +141,15 @@ class Handler(BaseHTTPRequestHandler):
                     elif hasattr(item, "__dict__"):
                         clean.append(vars(item))
                 self.send(200, {"detections": clean})
-        except Exception as exc:
-            self.send(500, {"error": str(exc)[:300]})
+        except Exception:
+            logging.exception("Analysis failed")
+            self.send(500, {"error": "Sunucu hatası. Yönetici kayıtlarını kontrol edin."})
 
 
 if __name__ == "__main__":
+    if not AUTH_USER or len(AUTH_PASSWORD) < 16:
+        raise SystemExit("NOVA_AUTH_USER ve en az 16 karakterli NOVA_AUTH_PASSWORD gerekli.")
+    if HOST not in ("127.0.0.1", "localhost", "::1") and os.environ.get("NOVA_BEHIND_HTTPS_PROXY") != "1":
+        raise SystemExit("Genel ağda yalnızca HTTPS reverse proxy arkasında çalıştırın.")
     print(f"NOVA DCG local web studio: http://{HOST}:{PORT}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
