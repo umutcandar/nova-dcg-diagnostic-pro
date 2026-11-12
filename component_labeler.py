@@ -30,6 +30,9 @@ def launch_labeler(parent, image_path):
     canvas.image=tkimg
     toolbar=ttk.Frame(win)
     toolbar.pack(fill="x",padx=10,pady=8)
+    board_id=tk.StringVar()
+    ttk.Label(toolbar, text="Kart ID:").pack(side="left", padx=(4,4))
+    ttk.Entry(toolbar, textvariable=board_id, width=12).pack(side="left", padx=(0,9))
     kind=tk.StringVar(value=COMPONENTS[0])
     ttk.Combobox(toolbar,textvariable=kind,values=COMPONENTS,state="readonly",width=18).pack(side="left")
     ttk.Label(toolbar,text="Bir parçayı dikdörtgen içine almak için sürükleyin.").pack(side="left",padx=12)
@@ -64,6 +67,11 @@ def launch_labeler(parent, image_path):
         if not regions:
             messagebox.showinfo("Boş","Önce en az bir parça işaretleyin.",parent=win)
             return
+        if confirmed.get() and not board_id.get().strip():
+            messagebox.showwarning("Kart kimliği eksik",
+                "Eğitimde aynı kartın fotoğraflarını birlikte ayırabilmek için Kart ID girin.",
+                parent=win)
+            return
         path=filedialog.asksaveasfilename(parent=win,defaultextension=".json",filetypes=[("JSON","*.json")])
         if not path:
             return
@@ -71,6 +79,7 @@ def launch_labeler(parent, image_path):
               "image_width":source.width,"image_height":source.height,
               "coordinate_system":"xyxy_normalized","regions":regions,
               "technician_verified":confirmed.get(),
+              "board_id":board_id.get().strip(),
               "note":"Labels were drawn manually; trainer requires explicit verified metadata."}
         Path(path).write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
         messagebox.showinfo("Kaydedildi",f"{len(regions)} bölge kaydedildi.",parent=win)
