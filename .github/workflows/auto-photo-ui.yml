@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - 'gui.py'
+      - 'pcb_workspace_v2.py'
+      - 'pcb_viewport.py'
+      - 'test_workspace_v2.py'
+      - 'test_pcb_viewport.py'
       - 'guided_photo_ui.py'
       - 'auto_detector.py'
       - 'test_gui_auto.py'
@@ -26,4 +30,4 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q .
       - name: Test photo-triggered analysis and failure messaging
-        run: xvfb-run -a python -m unittest -v test_gui_auto
+        run: xvfb-run -a python -m unittest -v test_gui_auto test_workspace_v2 test_pcb_viewport
