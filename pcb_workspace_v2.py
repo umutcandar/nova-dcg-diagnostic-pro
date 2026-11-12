@@ -20,6 +20,7 @@ from measurement_guides import instruction_for
 from measurement_history import record_measurement, history_text
 from multimeter_guides import guide_for
 from pcb_viewport import Viewport
+from session_store import save_autosave, restore_autosave
 
 BG = "#0B1220"
 CARD = "#131D2D"
@@ -298,6 +299,7 @@ class Workspace:
         except (OSError, ValueError) as exc:
             self.status.set("FOTOĞRAF HATASI  •  " + str(exc))
             return False
+        self._autosave()
         self.image_path = str(Path(path).resolve())
         self.image = photo
         self.tasks = []
@@ -317,6 +319,7 @@ class Workspace:
         if not self.image_path:
             self.status.set("Önce bir PCB fotoğrafı seçin.")
             return
+        self._autosave()
         self.tasks = []
         self.selected = None
         self._refresh_parts()
@@ -368,12 +371,20 @@ class Workspace:
                     except (ValueError, TypeError, KeyError) as exc:
                         self.image_status.set("Modelin döndürdüğü kutular geçersiz: " + str(exc))
                         self.tasks = []
+                    if self.tasks:
+                        try:
+                            recovered = restore_autosave(self.image_path, self.tasks)
+                            if recovered:
+                                self.status.set(f"{recovered} komponentin yerel ölçüm geçmişi geri yüklendi.")
+                        except (OSError, ValueError, TypeError, KeyError) as exc:
+                            self.status.set("Ölçüm geçmişi geri yüklenemedi: " + str(exc))
                     self._refresh_parts()
                     self._schedule_render()
                     if self.tasks:
                         self.select_index(0)
                     self.image_status.set(f"{len(self.tasks)} model adayı bulundu (henüz doğrulanmadı).")
-                    self.status.set("TARAMA BİTTİ  •  Parçayı seçerek Fluke modunu görüntüleyin")
+                    if not self.status.get().startswith("Ölçüm geçmişi"):
+                        self.status.set("TARAMA BİTTİ  •  Parçayı seçerek Fluke modunu görüntüleyin")
         except queue.Empty:
             pass
         if not self._closed and self.root.winfo_exists():
@@ -446,6 +457,7 @@ class Workspace:
         self._refresh_parts()
         self.parts.selection_set(str(self.selected))
         self.refresh_guide()
+        self._autosave()
         self._schedule_render()
 
     def refresh_guide(self):
@@ -495,6 +507,7 @@ class Workspace:
             self.measure_result.set("Hatalı Fluke okuması: " + str(exc))
             return
         self.reading.set("")
+        self._autosave()
         self.measure_result.set(
             f"{len(task['measurement_history'])}. ölçüm kaydedildi  ·  {result['status']}\n{result['detail']}"
         )
@@ -517,6 +530,15 @@ class Workspace:
         for item in review_queue([task]):
             text.insert("end", "Sonraki kontrol: " + item["reason"])
         text.configure(state="disabled")
+
+    def _autosave(self):
+        """Save local readings before switching photos, rescanning or closing."""
+        if not self.image_path or not self.tasks:
+            return
+        try:
+            save_autosave(self.image_path, self.tasks)
+        except (OSError, ValueError, TypeError) as exc:
+            self.status.set("YEREL OTOMATİK KAYIT HATASI  •  " + str(exc))
 
     def save_session(self):
         if not self.image_path:
@@ -645,6 +667,7 @@ class Workspace:
         """Prevent orphaned Tk callbacks when the application exits."""
         if self._closed:
             return
+        self._autosave()
         self._closed = True
         self._scan_number += 1  # Discard late background results.
         self.progress.stop()
