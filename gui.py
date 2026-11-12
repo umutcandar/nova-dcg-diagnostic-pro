@@ -584,6 +584,7 @@ class App:
                 self.table.delete(row)
 
 if __name__=="__main__":
-    root=tk.Tk()
-    App(root)
-    root.mainloop()
+    # V2 is the primary photo-first workflow. Legacy App remains importable
+    # for existing service records and backward-compatible unit tests.
+    from pcb_workspace_v2 import main
+    main()
