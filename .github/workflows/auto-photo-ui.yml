@@ -5,6 +5,8 @@ on:
     paths:
       - 'gui.py'
       - 'pcb_workspace_v2.py'
+      - 'photo_drop.py'
+      - 'test_photo_drop.py'
       - 'pcb_viewport.py'
       - 'test_workspace_v2.py'
       - 'test_pcb_viewport.py'
@@ -26,8 +28,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb python3-tk
       - name: Install UI dependencies
-        run: python -m pip install "Pillow>=10,<13"
+        run: python -m pip install "Pillow>=10,<13" "tkinterdnd2>=0.4.3,<1"
       - name: Compile Python
         run: python -m compileall -q .
       - name: Test photo-triggered analysis and failure messaging
-        run: xvfb-run -a python -m unittest -v test_gui_auto test_workspace_v2 test_pcb_viewport
+        run: xvfb-run -a python -m unittest -v test_gui_auto test_workspace_v2 test_pcb_viewport test_photo_drop
