@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 
 from download_and_test_model import download, EXPECTED_SHA256, EXPECTED_SIZE
+from model_registry import registered_model, ModelRegistryError
 
 WEIGHTS = Path(__file__).resolve().parent / "models" / "yolov8s_pcb_best.pt"
 
@@ -59,7 +60,16 @@ def automatic_detect(image_path, progress=None):
             "Otomatik komponent tespiti için Ultralytics kurulu değil. "
             "Proje klasöründeki sanal ortamda: python -m pip install -r requirements.txt"
         )
-    weights = ensure_weights(progress=progress)
+    try:
+        weights = registered_model()
+    except ModelRegistryError as exc:
+        raise DetectorSetupError(str(exc)) from exc
+    if weights is None:
+        weights = ensure_weights(progress=progress)
+        if progress:
+            progress("Doğrulanmış genel PCB modeli kullanılıyor.")
+    elif progress:
+        progress("Yerel eğitimle oluşturulan V2 modeli doğrulandı; tarama başlıyor.")
     if progress:
         progress("Fotoğraf yapay zekâ modeliyle taranıyor...")
     try:
