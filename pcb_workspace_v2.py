@@ -20,6 +20,7 @@ from measurement_guides import instruction_for
 from measurement_history import record_measurement, history_text
 from multimeter_guides import guide_for
 from pcb_viewport import Viewport
+from component_labeler import launch_labeler
 from session_store import save_autosave, restore_autosave
 
 BG = "#0B1220"
@@ -136,6 +137,7 @@ class Workspace:
         action(header, "Fotoğraf değiştir", self.choose_photo, BLUE).pack(side="right", padx=(8, 0))
         action(header, "Çalışmayı kaydet", self.save_session).pack(side="right", padx=(8, 0))
         action(header, "Yeniden tara", self.rescan).pack(side="right", padx=(8, 0))
+        action(header, "Eğitim etiketi", self.open_labeler).pack(side="right", padx=(8, 0))
 
         body = tk.Frame(self.root, bg=BG, padx=14, pady=13)
         body.pack(fill="both", expand=True)
@@ -280,6 +282,16 @@ class Workspace:
         if self.image and old_w > 0 and old_h > 0:
             self.viewport.pan((event.width - old_w)/2, (event.height - old_h)/2)
         self._schedule_render()
+
+    def open_labeler(self):
+        """Deliberate technician labeling for training, separate from predictions."""
+        if not self.image_path:
+            self.status.set("Etiketleme için önce PCB fotoğrafı seçin.")
+            return
+        try:
+            launch_labeler(self.root, self.image_path)
+        except (OSError, ValueError, tk.TclError) as exc:
+            self.status.set("EĞİTİM ETİKETİ HATASI  •  " + str(exc))
 
     def choose_photo(self):
         path = filedialog.askopenfilename(
