@@ -28,6 +28,18 @@ class Viewport:
         self.offset_y = (self.canvas_height - self.image_height * self.scale) / 2
         return self.scale
 
+    def fill(self):
+        """Fill the visible canvas while preserving image aspect ratio.
+
+        Some edges can be clipped; panning lets the user inspect them.
+        """
+        w = max(1, self.canvas_width)
+        h = max(1, self.canvas_height)
+        self.scale = min(self.MAX_SCALE, max(w / self.image_width, h / self.image_height))
+        self.offset_x = (w - self.image_width * self.scale) / 2
+        self.offset_y = (h - self.image_height * self.scale) / 2
+        return self.scale
+
     def to_canvas(self, x, y):
         return self.offset_x + x * self.scale, self.offset_y + y * self.scale
 
