@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: nova-dcg-private-web
+    runtime: python
+    region: frankfurt
+    plan: free
+    branch: feature/private-web-studio
+    autoDeployTrigger: commit
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python web_studio.py
+    envVars:
+      - key: NOVA_HOST
+        value: 0.0.0.0
+      - key: NOVA_BEHIND_HTTPS_PROXY
+        value: "1"
+      - key: NOVA_AUTH_USER
+        value: nova
+      - key: NOVA_AUTH_PASSWORD
+        sync: false
