@@ -29,10 +29,16 @@ class V2WorkspaceTests(unittest.TestCase):
         self.thread_patch = patch("pcb_workspace_v2.threading.Thread",
             side_effect=lambda target, daemon: SimpleNamespace(start=target))
         self.thread_patch.start()
+        self.save_patch = patch("pcb_workspace_v2.save_autosave", return_value=self.temp.name)
+        self.restore_patch = patch("pcb_workspace_v2.restore_autosave", return_value=0)
+        self.save_patch.start()
+        self.restore_patch.start()
 
     def tearDown(self):
-        self.thread_patch.stop()
         self.app.close()
+        self.restore_patch.stop()
+        self.save_patch.stop()
+        self.thread_patch.stop()
         self.temp.cleanup()
 
     def wait_for_detection(self,timeout=5):
