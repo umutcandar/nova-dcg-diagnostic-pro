@@ -655,18 +655,18 @@ class Workspace:
         text = tk.Text(dialog, bg=CANVAS, fg=TEXT, insertbackground=TEXT,
                        wrap="word", relief="flat", padx=14, pady=12, font=(FONT, 11))
         text.pack(fill="both", expand=True, padx=18, pady=(0, 18))
-        text.insert("end", f"Tespit edilen aday: {report['detected_candidates']}\\n")
-        text.insert("end", f"Düşük güven / bilinmiyor: {report['requires_review']}\\n")
-        text.insert("end", "Modellerin güven puanı doğruluk oranı DEĞİLDİR.\\n\\n")
-        text.insert("end", "PARÇA SINIFLARI\\n")
+        text.insert("end", f"Tespit edilen aday: {report['detected_candidates']}\n")
+        text.insert("end", f"Düşük güven / bilinmiyor: {report['requires_review']}\n")
+        text.insert("end", "Modellerin güven puanı doğruluk oranı DEĞİLDİR.\n\n")
+        text.insert("end", "PARÇA SINIFLARI\n")
         for name, count in report["class_counts"].items():
-            text.insert("end", f"  {name}: {count}\\n")
-        text.insert("end", "\\nSINIRLAR VE SONRAKİ ADIM\\n")
+            text.insert("end", f"  {name}: {count}\n")
+        text.insert("end", "\nSINIRLAR VE SONRAKİ ADIM\n")
         for message in report["warnings"]:
-            text.insert("end", "• " + message + "\\n")
-        text.insert("end", "\\nKaçırılan veya yanlış tanınan parçaları düzeltmek için 'Eğitim etiketi' kullanılabilir. Gerçek model eğitimi için farklı fiziksel kartlardan doğrulanmış veri gerekir.\\n")
+            text.insert("end", "• " + message + "\n")
+        text.insert("end", "\nKaçırılan veya yanlış tanınan parçaları düzeltmek için 'Eğitim etiketi' kullanılabilir. Gerçek model eğitimi için farklı fiziksel kartlardan doğrulanmış veri gerekir.\n")
         if self.recognition_report_path:
-            text.insert("end", "\\nYerel rapor: " + str(self.recognition_report_path) + "\\n")
+            text.insert("end", "\nYerel rapor: " + str(self.recognition_report_path) + "\n")
         text.configure(state="disabled")
 
     def show_history(self):
