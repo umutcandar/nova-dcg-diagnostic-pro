@@ -23,6 +23,7 @@ from pcb_viewport import Viewport
 from component_labeler import launch_labeler
 from session_store import save_autosave, restore_autosave
 from photo_drop import select_dropped_photo
+from recognition_audit import summarize_detections, save_local_audit
 
 BG = "#0B1220"
 CARD = "#131D2D"
@@ -95,6 +96,8 @@ class Workspace:
         self.image_status = tk.StringVar(value="PCB fotoğrafını yükleyerek otomatik taramayı başlatın.")
         self.drop_hint = tk.StringVar(value="Fotoğrafı Finder'dan sürükleyip bu alana bırakın  •  veya Fotoğraf değiştir")
         self.drop_enabled = False
+        self.recognition_report = None
+        self.recognition_report_path = None
         self.status = tk.StringVar(value="HAZIR  •  Model önerileri kesin arıza teşhisi değildir")
         self.detection_count = tk.StringVar(value="0 komponent")
         self.zoom_text = tk.StringVar(value="100%")
@@ -191,6 +194,7 @@ class Workspace:
                                         mode="indeterminate")
         self.progress.pack(fill="x")
         note(left, self.image_status, MUTED)
+        action(left, "Tanı raporu / Model güveni", self.show_recognition_report).pack(fill="x", pady=(12, 0))
 
         center = tk.Frame(body, bg=CARD, padx=8, pady=8)
         center.grid(row=0, column=1, sticky="nsew", padx=(0, 10))
@@ -390,6 +394,8 @@ class Workspace:
         self._autosave()
         self.image_path = str(Path(path).resolve())
         self.image = photo
+        self.recognition_report = None
+        self.recognition_report_path = None
         self.tasks = []
         self.selected = None
         self._scan_number += 1
@@ -408,6 +414,8 @@ class Workspace:
             self.status.set("Önce bir PCB fotoğrafı seçin.")
             return
         self._autosave()
+        self.recognition_report = None
+        self.recognition_report_path = None
         self.tasks = []
         self.selected = None
         self._refresh_parts()
@@ -455,7 +463,16 @@ class Workspace:
                     self._busy = False
                     self.progress.stop()
                     try:
-                        self.tasks = measurement_plan(review_detections(value))
+                        checked = review_detections(value)
+                        self.tasks = measurement_plan(checked)
+                        if self.image is not None:
+                            self.recognition_report = summarize_detections(checked, self.image.size)
+                            try:
+                                self.recognition_report_path = save_local_audit(
+                                    self.image_path, self.recognition_report
+                                )
+                            except OSError as exc:
+                                self.status.set("Yerel tanı raporu kaydedilemedi: " + str(exc))
                     except (ValueError, TypeError, KeyError) as exc:
                         self.image_status.set("Modelin döndürdüğü kutular geçersiz: " + str(exc))
                         self.tasks = []
@@ -623,6 +640,34 @@ class Workspace:
             f"{len(task['measurement_history'])}. ölçüm kaydedildi  ·  {result['status']}\n{result['detail']}"
         )
         self.status.set("ÖLÇÜM KAYDEDİLDİ  •  Referans koşulları ayrıca doğrulanmalıdır")
+
+    def show_recognition_report(self):
+        """Explain exactly what the detector found, without making accuracy claims."""
+        if self.recognition_report is None:
+            self.status.set("Henüz tamamlanmış bir fotoğraf taraması yok.")
+            return
+        report = self.recognition_report
+        dialog = tk.Toplevel(self.root, bg=CARD)
+        dialog.title("PCB model tespit raporu")
+        dialog.geometry("670x520")
+        tk.Label(dialog, text="GÖRÜNTÜ TANIMA KONTROL RAPORU", bg=CARD, fg=CYAN,
+                 font=(FONT, 16, "bold")).pack(anchor="w", padx=18, pady=(18, 6))
+        text = tk.Text(dialog, bg=CANVAS, fg=TEXT, insertbackground=TEXT,
+                       wrap="word", relief="flat", padx=14, pady=12, font=(FONT, 11))
+        text.pack(fill="both", expand=True, padx=18, pady=(0, 18))
+        text.insert("end", f"Tespit edilen aday: {report['detected_candidates']}\\n")
+        text.insert("end", f"Düşük güven / bilinmiyor: {report['requires_review']}\\n")
+        text.insert("end", "Modellerin güven puanı doğruluk oranı DEĞİLDİR.\\n\\n")
+        text.insert("end", "PARÇA SINIFLARI\\n")
+        for name, count in report["class_counts"].items():
+            text.insert("end", f"  {name}: {count}\\n")
+        text.insert("end", "\\nSINIRLAR VE SONRAKİ ADIM\\n")
+        for message in report["warnings"]:
+            text.insert("end", "• " + message + "\\n")
+        text.insert("end", "\\nKaçırılan veya yanlış tanınan parçaları düzeltmek için 'Eğitim etiketi' kullanılabilir. Gerçek model eğitimi için farklı fiziksel kartlardan doğrulanmış veri gerekir.\\n")
+        if self.recognition_report_path:
+            text.insert("end", "\\nYerel rapor: " + str(self.recognition_report_path) + "\\n")
+        text.configure(state="disabled")
 
     def show_history(self):
         if self.selected is None:
