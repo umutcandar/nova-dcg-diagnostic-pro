@@ -1,3 +1,49 @@
+# NOVA DCG Diagnostic Studio V2
+
+**Varsayılan uygulama:** `python gui.py` artık koyu temalı fotoğraf odaklı V2 çalışma alanını açar. Önceki `gui.py` servis sınıfı uyumluluk için korunmuştur.
+
+## MacBook M1 — çalıştırma
+
+```bash
+cd ~/Desktop/nova-dcg-diagnostic-pro
+source .venv/bin/activate
+git pull --ff-only
+python -m pip install -r requirements.txt
+python gui.py
+```
+
+## V2 araçları
+
+- **Fotoğraf değiştir:** Üst araç çubuğundan yeni JPG/PNG/WebP kart seç.
+- **Zoom:** Görüntü üzerindeyken fare tekerleği veya + / −. Yakınlaştırma imlecin bulunduğu noktayı korur.
+- **Pan:** Fotoğrafı basılı tutup sürükle. **Sığdır** tüm kartı yeniden gösterir.
+- **Parça seçimi:** Sol komponent listesi veya fotoğraftaki kutu. Sarı kutular **model tahminidir**, doğrulanmış parça kimliği değildir.
+- **Fluke:** Sağ panel Ω, kapasitans, diyot, vb. modunu, güvenlik hazırlığını, prob talimatlarını ve sonraki kontrolü gösterir.
+- **Doğrulanmış referans:** Nominal, tolerans, birim ve teknisyen onayı olmadan sayısal değer üretilmez.
+- **Ölçüm geçmişi:** Manual Fluke okumaları komponent bazında tutulur. Yerel otomatik yedekler `~/.nova_dcg/autosave` altında; sunucuya yüklenmez.
+- **Kaydet:** Ayrıca oturum JSON'u belirtilen yere dışa aktarılır.
+
+**Sınırlar:** Gerçek model karttaki her parçayı bulamayabilir. Fotoğraftan güvenilir prob pinleri, nominal değerler veya kesin elektriksel arıza belirlenemez. Fluke okumaları manuel girilir.
+
+## V2 eğitim altyapısı
+
+Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
+
+Veri denetimi (model eğitmez):
+
+```bash
+python train_v2_pipeline.py /path/to/annotations /path/to/output --base-model models/yolov8s_pcb_best.pt --audit-only
+```
+
+Yerel M1 eğitimi (doğrulanmış etiketli veri gerektiğinden uzun sürebilir):
+
+```bash
+python train_v2_pipeline.py /path/to/annotations /path/to/output --base-model models/yolov8s_pcb_best.pt --epochs 70 --imgsz 960 --batch 4 --device mps
+```
+
+Pipeline farklı fiziksel kartları train / validation / test arasında ayırır; eğitimden sonra görülmemiş test kartları için metrikler kaydedilir. **Şu anda yeni V2 modelinin eğitimi tamamlanmadı; gerçek ve doğrulanmış PCB fotoğraflarına ihtiyaç var.**
+
+---
 # NOVA DCG Diagnostic Pro — otomatik fotoğraf akışı (V1.5)
 
 ## MacBook M1: bir kez kur, ardından fotoğraf seç
