@@ -24,7 +24,8 @@ class OfficialPCBMCFoldTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def source_zip(self, bad_manifest=False, bad_coco=False, bad_labels=False):
+    def source_zip(self, bad_manifest=False, bad_coco=False, bad_labels=False,
+                   polygon_row=False, bad_polygon=False):
         counts=80
         names={}
         manifest={"folds":[{"fold":0}]}
@@ -53,8 +54,13 @@ class OfficialPCBMCFoldTests(unittest.TestCase):
                 for name in names[split]:
                     z.writestr(base+"images/"+name,self.picture)
                     cid=("999" if bad_labels else "6") if split=="train" else "4"
-                    z.writestr(base+"labels/"+name.replace(".jpg",".txt"),
-                               f"{cid} 0.5 0.5 0.3 0.3\n")
+                    line=f"{cid} 0.5 0.5 0.3 0.3\n"
+                    if split=="train" and name=="train_000.jpg":
+                        if polygon_row:
+                            line="1 0.2 0.25 0.8 0.25 0.7 0.75 0.2 0.25\n"
+                        if bad_polygon:
+                            line="1 0.2 0.2 0.2 0.2 0.2 0.2\n"
+                    z.writestr(base+"labels/"+name.replace(".jpg",".txt"),line)
         return self.zippath
 
     def test_fold_import_passes_verified_class_taxonomy_without_full_md5_in_test(self):
@@ -77,6 +83,29 @@ class OfficialPCBMCFoldTests(unittest.TestCase):
     def test_unknown_class_refused(self):
         with self.assertRaisesRegex(ProbeError,"Unrecognised class"):
             extract_official_fold(self.source_zip(bad_labels=True),self.root/"out",full_md5=False)
+
+    def test_closed_triangle_yolo_polygon_becomes_audited_detection_box(self):
+        path=self.source_zip(polygon_row=True)
+        output=self.root/"polygon_prepared"
+        report=extract_official_fold(path,output,full_md5=False)
+        self.assertEqual(report["polygon_rows_converted_to_detection_boxes"]["train"],1)
+        self.assertEqual(report["polygon_rows_converted_to_detection_boxes"]["val"],0)
+        self.assertEqual(report["polygon_conversion_examples"]["train"][0]["converted_class"],"Capacitor")
+        actual=(output/"labels/train/train_000.txt").read_text().strip().split()
+        self.assertEqual(len(actual),5)
+        self.assertEqual(actual[0],"1")
+        measured=list(map(float,actual[1:]))
+        self.assertAlmostEqual(measured[0],.5)
+        self.assertAlmostEqual(measured[1],.5)
+        self.assertAlmostEqual(measured[2],.6)
+        self.assertAlmostEqual(measured[3],.5)
+        self.assertEqual(report["labels_per_split"]["train"]["Capacitor"],1)
+        self.assertEqual(report["labels_per_split"]["train"]["Electrolytic Capacitor"],79)
+
+    def test_malformed_polygon_is_never_silently_accepted(self):
+        path=self.source_zip(bad_polygon=True)
+        with self.assertRaisesRegex(ProbeError,"Degenerate"):
+            extract_official_fold(path,self.root/"bad_polygons",full_md5=False)
 
     def test_non_official_archive_digest_refused(self):
         with self.assertRaisesRegex(ProbeError,"MD5"):
