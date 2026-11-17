@@ -3,6 +3,7 @@ import base64
 from http.client import HTTPConnection
 from io import BytesIO
 import json
+import os
 from threading import Thread
 import unittest
 from unittest.mock import patch
@@ -100,6 +101,40 @@ class WebStudioTests(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn(b"NovaCorrections", body)
         self.assertIn("application/javascript", headers["Content-Type"])
+
+    def test_large_photo_uses_tiled_onnx_results(self):
+        with BytesIO() as out:
+            Image.new("RGB", (1250, 800), (25, 90, 40)).save(out, format="PNG")
+            image = "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
+        sample = {"label":"Kondansatör","source_label":"capacitor",
+                  "bbox_xyxy_pixels":[100, 100, 320, 480], "confidence":.90}
+        with patch.dict(os.environ, {"NOVA_DETAILED_SCAN":"1"}):
+            with patch("web_onnx_detector.detailed_detect", return_value=[sample]) as detailed:
+                with patch("web_onnx_detector.automatic_detect", return_value=[]) as fast:
+                    code, body, _ = self.request(
+                        "POST", "/analyze", body=json.dumps({"image":image}),
+                        headers={"Content-Type":"application/json"})
+        self.assertEqual(code, 200)
+        result = json.loads(body)
+        self.assertEqual(result["inference_mode"],"tiled_detail")
+        self.assertEqual(result["detections"][0]["label"],"Kondansatör")
+        detailed.assert_called_once()
+        fast.assert_not_called()
+
+    def test_tiled_onnx_failure_uses_standard_fallback(self):
+        from web_onnx_detector import OnnxDetectorError
+        with BytesIO() as out:
+            Image.new("RGB", (1250, 800), (25, 90, 40)).save(out, format="PNG")
+            image = "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
+        with patch.dict(os.environ, {"NOVA_DETAILED_SCAN":"1"}):
+            with patch("web_onnx_detector.detailed_detect", side_effect=OnnxDetectorError("test")):
+                with patch("web_onnx_detector.automatic_detect", return_value=[]) as fast:
+                    code, body, _ = self.request(
+                        "POST", "/analyze", body=json.dumps({"image":image}),
+                        headers={"Content-Type":"application/json"})
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["inference_mode"],"standard_fallback")
+        fast.assert_called_once()
 
     def test_invalid_data_url_does_not_call_model(self):
         code, body, _ = self.request("POST", "/analyze",
