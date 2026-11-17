@@ -118,12 +118,34 @@ def read_remote_zip_names(url,size):
     sig,disk,disk_cd,on_disk,total,cd_size,cd_offset,comment=struct.unpack_from(
         "<4s4H2IH",tail,eocd
     )
-    if sig!=b"PK\x05\x06" or disk or disk_cd or on_disk!=total or total>MAX_ENTRIES:
-        raise ProbeError("Multi-disk or invalid ZIP directory not supported")
+    if sig!=b"PK\x05\x06" or disk or disk_cd:
+        raise ProbeError(f"Multi-disk ZIP unsupported (disk={disk}, cd_disk={disk_cd})")
+    if total==65535 or cd_size==0xffffffff or cd_offset==0xffffffff:
+        # Zip64 EOCD Locator precedes the traditional 22-byte EOCD.
+        # It holds the uint64 offset of the actual ZIP64 directory record.
+        locator_start=eocd-20
+        if locator_start < 0 or tail[locator_start:locator_start+4] != b"PK\x06\x07":
+            raise ProbeError("ZIP64 locator absent before end-of-central-directory")
+        loc_sig,loc_disk,zip64_offset,loc_disks=struct.unpack_from(
+            "<4sIQI",tail,locator_start
+        )
+        if loc_sig!=b"PK\x06\x07" or loc_disk!=0 or loc_disks!=1:
+            raise ProbeError("Multi-disk ZIP64 not supported")
+        record=download_range(url,zip64_offset,zip64_offset+55,size)
+        if record is None:
+            return {"state":"range_unsupported","entries":[]}
+        sig64,record_size,made,needed,disk64,cd_disk64,one64,total64,size64,offset64=struct.unpack_from(
+            "<4sQ2H2I4Q",record,0
+        )
+        if sig64!=b"PK\x06\x06" or record_size<44 or disk64 or cd_disk64 or one64!=total64:
+            raise ProbeError("ZIP64 end-of-directory record inconsistent")
+        total,cd_size,cd_offset=total64,size64,offset64
+    elif on_disk != total:
+        raise ProbeError("ZIP directory entry counts disagree")
+    if total>MAX_ENTRIES:
+        raise ProbeError("Too many archive entries")
     if cd_size > MAX_CENTRAL_DIRECTORY or cd_offset+cd_size>size:
         raise ProbeError("Unusually large central directory; manual review required")
-    if total==65535 or cd_size==0xffffffff or cd_offset==0xffffffff:
-        raise ProbeError("ZIP64 central directory requires manual inspection")
     directory=download_range(url,cd_offset,cd_offset+cd_size-1,size)
     if directory is None:
         return {"state":"range_unsupported","entries":[]}
