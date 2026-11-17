@@ -178,7 +178,11 @@ if(drawStart&&drawEnd){let x=Math.min(drawStart[0],drawEnd[0]),y=Math.min(drawSt
 function fit(){if(!imgW)return;zoom=Math.min(vp.clientWidth/imgW,vp.clientHeight/imgH);if(!Number.isFinite(zoom)||zoom<=0)zoom=1;ox=(vp.clientWidth-imgW*zoom)/2;oy=(vp.clientHeight-imgH*zoom)/2;draw();}
 function zoomAt(scale,x=vp.clientWidth/2,y=vp.clientHeight/2){if(!imgW)return;let next=Math.min(16,Math.max(.025,zoom*scale));ox=x-(x-ox)*next/zoom;oy=y-(y-oy)*next/zoom;zoom=next;draw();}
 function current(){return regions[selected];}
-function changeSelected(n){selected=n;draw();showRegions();showGuide();}
+function clearMeasurementDraft(){
+ ['value','notes','partNumber','min','max','source','conditions'].forEach(id=>$(id).value='');
+ $('refMode').value='';$('refCircuit').value='';$('referenceVerified').checked=false;
+}
+function changeSelected(n){if(n!==selected)clearMeasurementDraft();selected=n;draw();showRegions();showGuide();}
 function showRegions(){
 $('count').textContent=regions.length+' aday';
 $('removeRegion').disabled=selected<0;
@@ -222,7 +226,7 @@ $('exportLabels').onclick=()=>{
  }catch(e){$('trainingStatus').textContent=e.message;}
 };
 $('change').onclick=()=>$('file').click();$('zoomIn').onclick=()=>zoomAt(1.25);$('zoomOut').onclick=()=>zoomAt(.8);$('fit').onclick=fit;
-$('reanalyze').onclick=()=>{if(records.length&&!confirm('Tekrar tarama mevcut ölçüm kayıtlarının komponent numaralarıyla eşleşmesini etkileyebilir. Yine de taransın mı?'))return;analyze();};
+$('reanalyze').onclick=()=>{if((records.length||regions.some(r=>r.source==='model'&&r.confirmed))&&!confirm('Yeniden tarama model kutularını değiştirebilir. Önce raporu/etiketleri kaydettin mi?'))return;analyze();};
 $('file').onchange=e=>{if(e.target.files[0])openFile(e.target.files[0]);e.target.value='';};
 $('empty').onclick=()=>$('file').click();
 vp.addEventListener('dragover',e=>{e.preventDefault();vp.classList.add('dragover');});
@@ -255,11 +259,11 @@ for(let i=regions.length-1;i>=0;i--){let b=boxOf(regions[i]);if(validBox(b)&&p[0
 vp.addEventListener('pointerup',pointerFinish);vp.addEventListener('pointercancel',e=>{pointer=null;drawStart=null;drawEnd=null;vp.classList.remove('dragging');draw();});
 window.addEventListener('resize',()=>{if(imgW)fit();else draw();});
 function openFile(file){
-if(records.length&&!confirm('Yeni fotoğraf açınca kaydedilmemiş ölçümler kaybolacak. Önce JSON raporunu indirdin mi?'))return;
+if((records.length||regions.some(r=>r.confirmed||r.source==='manual'))&&!confirm('Yeni fotoğraf açınca bu kartın işaretleri ve ölçümleri kaybolacak. Rapor/etiketleri indirdin mi?'))return;
 if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Yalnız JPG/PNG/WebP ve en fazla 12 MB dosya desteklenir.','warn');return;}
 const token=++requestId,reader=new FileReader();
 reader.onerror=()=>status('Fotoğraf okunamadı.','warn');
-reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;$('boardId').value='';$('completedReview').checked=false;$('trainingStatus').textContent='';drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
+reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;clearMeasurementDraft();$('boardId').value='';$('completedReview').checked=false;$('trainingStatus').textContent='';drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
 reader.readAsDataURL(file);
 }
 function analysisImage(){
