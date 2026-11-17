@@ -16,7 +16,7 @@ GUIDANCE={
  "Header":("Direnç (Ω)","Pinleri şemayla eşleştir, enerjisiz bağlantı sürekliliğini test et."),
  "Kristal":("Datasheet gerekli","Kristal osilatörün doğru çalıştığı basit Fluke ölçümüyle anlaşılmaz; yöntemini doğrula."),
  "Test noktası":("Devre şeması gerekli","Test noktasının işlevi şema olmadan tahmin edilemez."),
- "Bilinmiyor":("Direnç (Ω)","Ölçümden önce komponent türünü ve pinleri doğrula.")
+ "Bilinmiyor":("Doğrulama gerekli","Komponent türü netleşmeden Fluke modu veya prob uçları seçilmemeli.")
 }
 def instruction_for(component):
     return GUIDANCE.get(component,GUIDANCE["Bilinmiyor"])
