@@ -1,0 +1,77 @@
+name: NOVA real PCB browser, model and live-security E2E
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/nova-full-e2e.yml'
+      - 'test_web_browser_e2e.py'
+      - 'web_studio.py'
+      - 'web_studio.html'
+      - 'web_component_knowledge.js'
+      - 'web_corrections.js'
+      - 'web_review.js'
+jobs:
+  browser-and-real-onnx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    permissions:
+      contents: read
+    env:
+      NOVA_DETAILED_SCAN: "0"
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install browser and CPU-only inference dependencies
+        run: |
+          python -m pip install -r requirements-web.txt
+          python -m pip install "playwright==1.58.0"
+          python -m playwright install --with-deps chromium
+      - name: Verify public live service health and no anonymous access
+        run: |
+          python - <<'PY'
+          from urllib.request import urlopen
+          from urllib.error import HTTPError
+          root="https://nova-dcg-diagnostic-pro.onrender.com"
+          with urlopen(root+"/healthz",timeout=70) as response:
+            assert response.status==200,(response.status,response.read(200))
+            print("LIVE healthz: 200")
+          for path in ("/","/model-status","/web_review.js","/web_component_knowledge.js"):
+            try:
+              urlopen(root+path,timeout=70)
+            except HTTPError as e:
+              assert e.code==401,(path,e.code)
+              print("LIVE anonymous",path,": 401 protected")
+            else:
+              raise RuntimeError("PRIVATE ENDPOINT EXPOSED: "+path)
+          PY
+      - name: Fetch pinned real 13-image PCB validation set, no user/customer pictures
+        run: |
+          git clone --quiet --filter=blob:none --sparse --depth 1 \
+            https://github.com/wangshnegqi/pcb-component-detection-dataset-yolo.git /tmp/nova-test-photos
+          git -C /tmp/nova-test-photos sparse-checkout set dataset/images/val dataset/labels/val
+          test "$(git -C /tmp/nova-test-photos rev-parse HEAD)" = "0d7ae7310fa607389779b6132285336ad73e96e1"
+          test "$(find /tmp/nova-test-photos/dataset/images/val -type f | wc -l)" -ge 10
+      - name: Run actual Chromium UI tests and REAL authenticated ONNX API
+        run: |
+          export NOVA_PUBLIC_PCB_TEST_IMAGE="$(find /tmp/nova-test-photos/dataset/images/val \
+            -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.jpeg' \) | LC_ALL=C sort | head -n 1)"
+          test -n "$NOVA_PUBLIC_PCB_TEST_IMAGE"
+          python -m unittest -v test_web_browser_e2e 2>&1 | tee /tmp/nova-real-e2e.log
+          echo "### Real NOVA PCB full-stack test" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Live production health 200 and protected endpoints 401" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Chromium tested real 4K upload / 7th component classification correction / persisted label / Fluke record" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Actual 21-class SHA256-pinned ONNX model was queried through authenticated local HTTP API on public PCB photograph" >> "$GITHUB_STEP_SUMMARY"
+          echo "- No user password or private board photos were used" >> "$GITHUB_STEP_SUMMARY"
+          grep -E "REAL PHOTO|Ran [0-9]+ tests|OK" /tmp/nova-real-e2e.log | tail -n 6 >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-real-4k-browser-photo-review-test
+          path: |
+            artifacts/browser_7_capacitor_verified.png
+          if-no-files-found: warn
+          retention-days: 14
