@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 from dataset import CLASSES, validate_annotation
-from model_inference import _iou
+from model_inference import _iou, deduplicate_detections
 
 
 def _rate(numerator, denominator):
@@ -96,7 +96,7 @@ def load_verified_records(annotations_dir, holdout_ids):
 def _load_predictions(record, weights=None, predictions_dir=None):
     if weights is not None:
         from model_inference import detect_components
-        rows = detect_components(record["image"], weights, confidence=0.05)
+        rows = detect_components(record["image"], weights, confidence=0.05, postprocess=False)
     else:
         path = Path(predictions_dir) / record["relative_path"].with_suffix(".predictions.json")
         if not path.is_file():
@@ -111,7 +111,9 @@ def _load_predictions(record, weights=None, predictions_dir=None):
         score = item.get("confidence")
         if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
             raise ValueError(f"Geçersiz model güveni ({record['image']} #{index})")
-        result.append({"label": item["label"], "confidence": score,
+        result.append({"label": item["label"],
+                       "source_label": str(item.get("source_label") or item["label"]),
+                       "confidence": score,
                        "bbox": _box(item.get("bbox_xyxy_pixels"), record["size"])})
     return result
 
@@ -129,7 +131,13 @@ def score_predictions(records, threshold=0.45, iou_threshold=0.50):
     per_class = {label: Counter() for label in CLASSES}
     board_stats = {}
     for record in records:
-        gt, preds = record["gt"], [p for p in record["predictions"] if p["confidence"] >= threshold]
+        gt = record["gt"]
+        # Filter first, then apply the exact application postprocessing at
+        # each threshold. Otherwise low-score alternatives distort calibration.
+        thresholded = [{**p, "bbox_xyxy_pixels": p["bbox"]}
+                       for p in record["predictions"] if p["confidence"] >= threshold]
+        preds = [{**p, "bbox": p["bbox_xyxy_pixels"]}
+                 for p in deduplicate_detections(thresholded)]
         pairs = sorted(
             ((iou, preds[pi]["confidence"], gi, pi)
              for gi, truth in enumerate(gt) for pi, pred in enumerate(preds)
