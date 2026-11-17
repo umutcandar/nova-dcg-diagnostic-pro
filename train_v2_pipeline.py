@@ -24,6 +24,7 @@ def audit_annotations(source_dir):
     files = sorted(source.rglob("*.json"))
     records = []
     seen_images = {}
+    seen_fingerprints = {}
     counts = Counter()
     boards = defaultdict(list)
     for file in files:
@@ -50,6 +51,22 @@ def audit_annotations(source_dir):
         checked = validate_annotation(item)
         if not checked:
             raise ValueError(f"Komponent kutusu içermeyen etiket: {file}")
+        if any(CLASSES[index] == "Bilinmiyor" for index, *_ in checked):
+            raise ValueError(f"Belirsiz 'Bilinmiyor' etiketiyle model eğitilemez: {file}")
+        digest = hashlib.sha256()
+        with image.open("rb") as fd:
+            for block in iter(lambda: fd.read(1024 * 1024), b""):
+                digest.update(block)
+        fingerprint = digest.hexdigest()
+        old = seen_fingerprints.get(fingerprint)
+        if old is not None:
+            old_board, old_file = old
+            if old_board != board_id:
+                raise ValueError(
+                    f"Aynı fotoğraf baytları farklı PCB kimliğinde; train/test sızıntısı: {old_file} ve {file}"
+                )
+            raise ValueError(f"Aynı fotoğraf iki kez eğitimde kullanılamaz: {old_file} ve {file}")
+        seen_fingerprints[fingerprint] = (board_id, file)
         for index, *_ in checked:
             counts[CLASSES[index]] += 1
         boards[board_id].append(str(image))
@@ -70,13 +87,12 @@ def audit_annotations(source_dir):
             warnings.append(f"Hiç {cls} örneği yok; model bu sınıfı güvenilir öğrenemez.")
         elif counts[cls] < 50:
             warnings.append(f"{cls}: yalnızca {counts[cls]} örnek. Daha fazla etiket toplayın.")
-    if counts["Bilinmiyor"]:
-        warnings.append("Bilinmiyor sınıfı içeriliyor; emin olunmayan parçaları eğitim verisinden ayırın.")
     return {
         "board_count": len(boards), "image_count": len(records),
         "box_count": sum(counts.values()), "classes": list(CLASSES),
         "labels": dict(counts), "warnings": warnings,
         "verified": True, "board_ids": sorted(boards),
+        "duplicate_photo_sha256_check": "passed",
     }
 
 
@@ -140,7 +156,7 @@ def train_verified(
         if isinstance(actual_names, dict) else list(actual_names)
     )
     if actual_classes != list(CLASSES):
-        raise RuntimeError("Eğitilen modelin sınıf adları 14 sınıflı veri kümesine uymuyor.")
+        raise RuntimeError(f"Eğitilen modelin sınıf adları {len(CLASSES)} sınıflı veri kümesiyle uyuşmuyor.")
     checkpoint = Path(model.trainer.best).resolve()
     registry = register_trained_model(checkpoint, list(CLASSES))
     report["registered_model"] = registry["weights"]
@@ -154,7 +170,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("annotations", help="Verified per-board image+JSON directory")
     parser.add_argument("output", help="A separate directory for split dataset and trained model")
-    parser.add_argument("--base-model", required=True, help="Local pretrained .pt checkpoint")
+    parser.add_argument("--base-model", help="Local pretrained .pt checkpoint (required for training only)")
     parser.add_argument("--epochs", type=int, default=70)
     parser.add_argument("--imgsz", type=int, default=960)
     parser.add_argument("--batch", type=int, default=8)
@@ -165,6 +181,8 @@ def main():
     if args.audit_only:
         report=audit_annotations(args.annotations)
     else:
+        if not args.base_model:
+            parser.error("--base-model eğitim için zorunludur; --audit-only ile gerekmez")
         report=train_verified(
             args.annotations, args.output, args.base_model,
             epochs=args.epochs, imgsz=args.imgsz,
