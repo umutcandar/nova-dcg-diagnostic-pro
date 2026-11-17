@@ -191,6 +191,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/web_component_knowledge.js":
             content = (ROOT / "web_component_knowledge.js").read_text(encoding="utf-8")
             return self.send_payload(200, content, "application/javascript", head=head)
+        if path == "/web_corrections.js":
+            content = (ROOT / "web_corrections.js").read_text(encoding="utf-8")
+            return self.send_payload(200, content, "application/javascript", head=head)
         if path == "/model-status":
             from web_onnx_detector import model_state
             return self.send_payload(200, model_state(), head=head)
