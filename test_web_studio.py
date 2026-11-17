@@ -78,6 +78,14 @@ class WebStudioTests(unittest.TestCase):
         self.assertIn("application/javascript", headers["Content-Type"])
         self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
 
+    def test_knowledge_script_is_authenticated(self):
+        code, _, _ = self.request("GET", "/web_component_knowledge.js", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, headers = self.request("GET", "/web_component_knowledge.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b"NovaKnowledge", body)
+        self.assertIn("application/javascript", headers["Content-Type"])
+
     def test_invalid_data_url_does_not_call_model(self):
         code, body, _ = self.request("POST", "/analyze",
                                      body=json.dumps({"image": "not-an-image"}),
