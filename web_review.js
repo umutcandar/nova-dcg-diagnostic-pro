@@ -9,7 +9,7 @@
   const CLASSES = Object.freeze([
     "Direnç", "Kondansatör", "Diyot", "Entegre", "Transistör",
     "Bobin", "Konnektör", "Bilinmiyor", "MOSFET", "LED",
-    "Anahtar", "Header", "Kristal", "Test noktası", "Trimpot", "Batarya", "Buzzer", "Ekran", "Sigorta", "Soğutucu", "Pad", "Pin", "Röle", "Trafo"
+    "Anahtar", "Header", "Kristal", "Test noktası", "Trimpot", "Batarya", "Buzzer", "Ekran", "Sigorta", "Soğutucu", "Pad", "Pin", "Röle", "Trafo", "Elektrolitik Kondansatör", "Zener Diyot", "Ferrit Boncuk", "Jumper"
   ]);
 
   function validBox(box, width, height) {
