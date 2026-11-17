@@ -81,6 +81,44 @@ class V2WorkspaceTests(unittest.TestCase):
         self.assertEqual(len(self.app.tasks[0]["measurement_history"]),1)
         self.assertIn("kaydedildi",self.app.measure_result.get())
 
+    def test_technician_rejects_false_candidate_and_can_undo(self):
+        items = [
+            {"label":"Kondansatör", "source_label":"Capacitor", "confidence":.88,
+             "bbox_xyxy_pixels":[25,30,85,90]},
+            {"label":"Diyot", "source_label":"Diode", "confidence":.81,
+             "bbox_xyxy_pixels":[170,150,235,205]},
+        ]
+        with patch("pcb_workspace_v2.automatic_detect", return_value=items):
+            self.app.open_photo(self.photo)
+            self.wait_for_detection()
+        self.app.select_index(0)
+        self.app.toggle_rejection()
+        self.assertTrue(self.app.tasks[0]["technician_rejected_candidate"])
+        self.assertIn("1 aday", self.app.detection_count.get())
+        self.assertIn("geri al", self.app.reject_button.cget("text"))
+        self.assertEqual(self.app.mode_text.get(), "Ölçüm kapalı")
+        self.app.reading.set("50")
+        self.app.save_measurement()
+        self.assertNotIn("measurement_history", self.app.tasks[0])
+        self.app.toggle_rejection()
+        self.assertFalse(self.app.tasks[0]["technician_rejected_candidate"])
+        self.assertIn("2 aday", self.app.detection_count.get())
+        self.assertIn("Kapasitans", self.app.mode_text.get())
+
+    def test_conflicted_component_warns_even_when_confidence_is_high(self):
+        rows = [{
+            "label": "Bilinmiyor", "source_label": "Capacitor / Diode",
+            "display_label": "Kondansatör / Diyot (belirsiz)",
+            "ambiguity_reason": "capacitor_diode_overlap",
+            "needs_review": True, "confidence": .91,
+            "bbox_xyxy_pixels": [40, 30, 100, 85],
+        }]
+        with patch("pcb_workspace_v2.automatic_detect", return_value=rows):
+            self.app.open_photo(self.photo)
+            self.wait_for_detection()
+        self.assertIn("ÇAKIŞMASI", self.app.component_meta.get())
+        self.assertEqual(self.app.tasks[0]["mode"], "Doğrulama gerekli")
+
     def test_photo_replace_and_visible_error(self):
         with patch("pcb_workspace_v2.automatic_detect",side_effect=RuntimeError("Model indirilemedi")):
             self.assertTrue(self.app.open_photo(self.photo))
