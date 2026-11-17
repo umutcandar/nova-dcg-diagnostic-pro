@@ -209,17 +209,30 @@ def decode_predictions(output, width, height, scale, pad_x, pad_y, confidence=0.
 
 
 def candidate_tiles(width, height):
-    """Up to nine overlapping high-detail crops, preserving small PCB parts."""
-    if width < 1 or height < 1 or max(width,height) <= 1024:
+    """At most 9 overlapping detail crops; cover EVERY pixel of large PCB photos.
+
+    On 4K/8K photos a fixed 1024px 3-column grid silently leaves gaps.
+    Size tiles for three positions per axis with >=20% overlap, retaining
+    a fixed CPU inference budget on the small Render instance.
+    """
+    if width < 1 or height < 1 or max(width, height) <= 1024:
         return []
-    size = min(1024, max(640, round(max(width,height)*0.58)))
-    tilew, tileh = min(size,width),min(size,height)
-    def starts(total,tile):
-        remaining=max(0,total-tile)
-        return sorted(set((0,remaining//2,remaining)))
-    result=[(x,y,min(width,x+tilew),min(height,y+tileh))
-            for y in starts(height,tileh) for x in starts(width,tilew)]
-    return [r for r in result if r!=(0,0,width,height)]
+    size = min(1024, max(640, round(max(width, height) * 0.58)))
+    # Three evenly spaced windows can only cover the full dimension with
+    # 20% overlap when tile >= total / (3 - 2*0.20) = total / 2.6.
+    tilew = min(width, max(size, math.ceil(width / 2.6)))
+    tileh = min(height, max(size, math.ceil(height / 2.6)))
+
+    def starts(total, tile):
+        remaining = max(0, total - tile)
+        return sorted(set((0, remaining // 2, remaining)))
+
+    result = [
+        (x, y, min(width, x + tilew), min(height, y + tileh))
+        for y in starts(height, tileh)
+        for x in starts(width, tilew)
+    ]
+    return [rect for rect in result if rect != (0, 0, width, height)]
 
 
 def merge_overlapping_detections(predictions, threshold=.50):
