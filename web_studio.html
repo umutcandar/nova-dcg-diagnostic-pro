@@ -251,13 +251,82 @@ function rebuildBands(){
 $('bandCount').onchange=rebuildBands;
 $('marking').oninput=renderKnowledge;
 function changeSelected(n){if(n!==selected){clearMeasurementDraft();$('marking').value='';$('bandCount').value='0';}selected=n;draw();showRegions();showGuide();}
+function persistRegion(r){
+ if(!r||!r.confirmed||!LABELS.includes(r.label)||r.label==='Bilinmiyor')return false;
+ r.human_verified=true;
+ const entry=NovaCorrections.makeEntry(r,imgW,imgH,LABELS);
+ if(!entry||!photoDigest)return false;
+ photoCorrections=NovaCorrections.upsert(photoCorrections,entry,LABELS);
+ return NovaCorrections.save(window.localStorage,photoDigest,photoCorrections,LABELS);
+}
+function discardSavedRegion(r){
+ if(!r)return;
+ const box=NovaCorrections.normalized(r.bbox_xyxy_pixels,imgW,imgH);
+ if(!box)return;
+ photoCorrections=photoCorrections.filter(e=>NovaCorrections.iou(e.box,box)<NovaCorrections.MIN_IOU);
+ if(photoDigest)NovaCorrections.save(window.localStorage,photoDigest,photoCorrections,LABELS);
+}
+function confirmClass(label){
+ const r=current();if(!r||!LABELS.includes(label)||label==='Bilinmiyor')return;
+ if(records.some(x=>x.region_id===r.id&&x.part!==label)){
+  status('Bu parçaya ait başka türde ölçüm var. Önce raporu indirip kayıtlarını kontrol et.','warn');return;
+ }
+ if(r.label!==label)r.original_model_label=r.original_model_label||r.label;
+ r.label=label;r.confirmed=true;r.human_verified=true;
+ $('completedReview').checked=false;
+ const saved=persistRegion(r);
+ showRegions();showGuide();draw();
+ status((saved?'Düzeltme bu fotoğraf için kaydedildi.':'Parça doğrulandı (tarayıcıda kalıcı kayıt açılamadı).')+' Model yeniden eğitilmedi.','good');
+}
+function renderAlternatives(){
+ const r=current(),root=$('modelAlternatives');
+ root.replaceChildren();root.hidden=true;
+ if(!r||r.confirmed&&r.human_verified)return;
+ const hint=NovaCorrections.reviewHint(r,imgW,imgH);
+ const alternatives=Array.isArray(r.alternatives)?r.alternatives.filter(a=>
+    a&&LABELS.includes(a.label)&&a.label!==r.label&&a.confidence>=.10).slice(0,3):[];
+ if(!hint&&!alternatives.length)return;
+ root.hidden=false;
+ if(hint){root.classList.add('reviewHint');const t=document.createElement('p');t.className='warning';t.textContent='⚠ Şüpheli model tahmini: '+hint;root.append(t);}
+ else root.classList.remove('reviewHint');
+ const lead=document.createElement('p');lead.textContent='Alternatifleri kontrol et. Bu değerler model skorudur; doğruluk oranı değildir.';root.append(lead);
+ const row=document.createElement('div');row.className='quickFix';
+ const offered=new Set();
+ function add(label,caption){
+  if(offered.has(label)||label===r.label)return;
+  offered.add(label);const button=document.createElement('button');
+  button.type='button';button.textContent=caption;
+  button.onclick=()=>confirmClass(label);row.append(button);
+ }
+ if(hint)add('Kondansatör','Kondansatör olarak doğrula');
+ for(const a of alternatives)add(a.label,a.label+' seç ve doğrula ('+Math.round(a.confidence*100)+'%)');
+ root.append(row);
+}
 function showRegions(){
 $('count').textContent=regions.length+' aday';
 $('removeRegion').disabled=selected<0;
+$('forgetCorrections').disabled=!photoDigest||!photoCorrections.length;
+const savedCount=regions.filter(r=>r.human_verified&&r.confirmed).length;
+const suspicious=regions.filter(r=>!r.confirmed&&NovaCorrections.reviewHint(r,imgW,imgH)).length;
+$('correctionSummary').textContent=savedCount+' teknisyen onaylı · '+suspicious+' şüpheli model tahmini · '+photoCorrections.length+' fotoğrafa kayıtlı düzeltme';
 $('exportLabels').disabled=!imgW||!regions.length;
 const root=$('results');root.replaceChildren();
 if(!regions.length){const p=document.createElement('p');p.className='note';p.style.marginTop='12px';p.textContent='Komponent bulunamadı. Elle işaretle seçeneğini kullanabilirsin.';root.append(p);return;}
-regions.forEach((r,i)=>{const b=document.createElement('button');b.type='button';b.className='item'+(i===selected?' sel':'');const left=document.createElement('span');left.textContent=(i+1)+'. '+r.label;const sub=document.createElement('span');sub.className='minor';sub.textContent=r.source==='manual'?'Elle işaretlendi':(typeof r.confidence==='number'?Math.round(r.confidence*100)+'% model güveni · doğrulanmadı':'Model tahmini · doğrulanmadı');left.append(sub);b.append(left);const arrow=document.createElement('span');arrow.textContent='›';b.append(arrow);b.onclick=()=>changeSelected(i);root.append(b);});
+regions.forEach((r,i)=>{
+ const b=document.createElement('button');b.type='button';
+ b.className='item'+(i===selected?' sel':'')+(r.confirmed&&r.human_verified?' verify':'');
+ const left=document.createElement('span');
+ left.textContent=(i+1)+'. '+r.label;
+ const sub=document.createElement('span');sub.className='minor';
+ const hint=!r.confirmed&&NovaCorrections.reviewHint(r,imgW,imgH);
+ sub.textContent=r.confirmed&&r.human_verified?'✓ Teknisyen onayı'+(r.original_model_label&&r.original_model_label!==r.label?' · Model: '+r.original_model_label:''):
+ (r.source==='manual'?'Elle işaretlendi':
+ (typeof r.confidence==='number'?Math.round(r.confidence*100)+'% model skoru · doğrulanmadı':'Model önerisi · doğrulanmadı'))+
+ (hint?' · ⚠ Sınıfı kontrol et':'');
+ left.append(sub);b.append(left);
+ const arrow=document.createElement('span');arrow.textContent='›';b.append(arrow);
+ b.onclick=()=>changeSelected(i);root.append(b);
+});
 }
 function showGuide(){
 const r=current();$('selectionFields').hidden=!r;$('noSelection').hidden=!!r;
@@ -275,13 +344,52 @@ $('guide').replaceChildren();
  bold.textContent=label+': ';div.append(bold,document.createTextNode(value));$('guide').append(div);
 });
 $('bandCount').value='0';rebuildBands();
+renderAlternatives();
 $('assessment').textContent='';
 }
 function toggleManual(active){marking=active;$('manual').classList.toggle('active',active);vp.classList.toggle('marking',active);status(active?'Kartın üstünde sol tuşla sürükleyerek parça kutusu çiz.':'Elle işaretleme kapandı.');}
 const opts=$('partType');LABELS.forEach(k=>{let o=document.createElement('option');o.value=k;o.textContent=k;opts.append(o);});
-$('partType').onchange=()=>{const r=current();if(!r)return;r.label=opts.value;r.confirmed=false;$('completedReview').checked=false;showRegions();showGuide();};
-$('confirmed').onchange=()=>{if(current())current().confirmed=$('confirmed').checked;$('completedReview').checked=false;};
+$('partType').onchange=()=>{
+ const r=current();if(!r)return;
+ if(records.some(x=>x.region_id===r.id&&x.part!==opts.value)){
+  status('Bu parçanın eski tipte ölçüm kaydı var; önce raporla kayıtlarını kontrol et.','warn');
+  opts.value=r.label;return;
+ }
+ if(r.label!==opts.value){
+  r.original_model_label=r.original_model_label||r.label;
+  discardSavedRegion(r);r.label=opts.value;r.confirmed=false;r.human_verified=false;
+  $('completedReview').checked=false;
+ }
+ showRegions();showGuide();draw();
+};
+$('confirmed').onchange=()=>{
+ const r=current();if(!r)return;
+ r.confirmed=$('confirmed').checked;
+ if(r.confirmed){
+  if(r.label==='Bilinmiyor'){r.confirmed=false;$('confirmed').checked=false;status('Önce doğru parça türünü seç.','warn');return;}
+  r.human_verified=true;
+  const saved=persistRegion(r);
+  status(saved?'Bu fotoğrafın doğrulanmış parça etiketi kaydedildi.':'Parça onaylandı, ancak kalıcı tarayıcı kaydı oluşturulamadı.',saved?'good':'warn');
+ }else{
+  r.human_verified=false;discardSavedRegion(r);
+ }
+ $('completedReview').checked=false;
+ showRegions();renderAlternatives();draw();
+};
 $('manual').onclick=()=>toggleManual(!marking);
+$('forgetCorrections').onclick=()=>{
+ if(!photoDigest||!photoCorrections.length)return;
+ if(!confirm('Bu fotoğraf için tarayıcıda kayıtlı doğrulamaları silmek istiyor musun? Model etiketleri geri gelir.'))return;
+ try{window.localStorage.removeItem(NovaCorrections.photoKey(photoDigest));}catch(e){}
+ photoCorrections=[];
+ for(const r of regions){
+   if(r.correction_applied||r.correction_source==='same_photo_local_review'){
+     if(r.original_model_label)r.label=r.original_model_label;
+     r.confirmed=false;r.human_verified=false;r.correction_applied=false;
+   }
+ }
+ showRegions();showGuide();draw();status('Bu fotoğrafın düzeltme hafızası temizlendi.','good');
+};
 $('removeRegion').onclick=()=>{
  const r=current();if(!r)return;
  if(records.some(x=>x.region_id===r.id)){status('Bu parçanın ölçüm kaydı var. Önce JSON raporunu indirip ölçümleri temizle.','warn');return;}
