@@ -1,0 +1,51 @@
+name: PCB-MC official 4TU archive and annotation catalog probe
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "pcb_mc_archive_probe.py"
+      - "test_pcb_mc_archive_probe.py"
+      - ".github/workflows/pcb-mc-source-probe.yml"
+jobs:
+  audit-official-dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify source probe tests without network
+        run: python -m unittest -v test_pcb_mc_archive_probe
+      - name: Resolve official 4TU DOI and inspect remote ZIP member list
+        run: |
+          python pcb_mc_archive_probe.py --output artifacts/pcb_mc_remote_catalog.json
+      - name: Publish official metadata provenance report
+        if: always()
+        run: |
+          if [ -f artifacts/pcb_mc_remote_catalog.json ]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open("artifacts/pcb_mc_remote_catalog.json"))
+          print("### Authoritative PCB-MC dataset catalog (NO 3.77GB download)")
+          print("DOI:", d["dataset_doi"])
+          print("Name/bytes/MD5:", d["archive"])
+          print("Byte-range ZIP inspection:", d["zip_member_probe"])
+          print("COCO files under PCB-MC-C:")
+          for item in d["pcb_mc_components_annotation_files"][:30]:
+              print("-",item)
+          print("Fold manifests:")
+          for item in d["pcb_mc_split_files"]:
+              print("-",item)
+          print("**No images have been downloaded; no model has been trained.**")
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pcb-mc-authoritative-archive-catalog
+          path: artifacts/pcb_mc_remote_catalog.json
+          if-no-files-found: warn
+          retention-days: 30
