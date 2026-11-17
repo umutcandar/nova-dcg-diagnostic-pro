@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 CLASSES = ["Direnç", "Kondansatör", "Diyot", "Entegre", "Transistör", "Bobin", "Konnektör", "Bilinmiyor",
-           "MOSFET", "LED", "Anahtar", "Header", "Kristal", "Test noktası", "Trimpot"]
+           "MOSFET", "LED", "Anahtar", "Header", "Kristal", "Test noktası", "Trimpot", "Batarya", "Buzzer", "Ekran", "Sigorta", "Soğutucu", "Pad", "Pin", "Röle", "Trafo"]
 
 def validate_annotation(data):
     if data.get("coordinate_system") != "xyxy_normalized":
