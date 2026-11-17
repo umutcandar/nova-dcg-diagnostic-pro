@@ -32,6 +32,10 @@ def audit_annotations(source_dir):
             continue
         if item.get("technician_verified") is not True:
             raise ValueError(f"Teknisyen onayı eksik: {file}")
+        if item.get("annotation_complete") is not True:
+            raise ValueError(
+                f"Tüm görünür komponentler etiketlenmeden eğitime alınamaz: {file}"
+            )
         board_id = str(item.get("board_id") or "").strip()
         if not board_id:
             raise ValueError(f"board_id eksik: {file}")
