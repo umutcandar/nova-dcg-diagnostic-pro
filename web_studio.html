@@ -93,7 +93,9 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <div id="status" role="status" aria-live="polite">Başlamak için bir kart fotoğrafı seç.</div>
 </section>
 <aside class="side">
-<section class="panel"><div class="block"><div class="headline"><h2>Komponentler</h2><span id="count" class="counter">0 aday</span></div><p class="note">Sarı kutular model tahminidir. Yeşil işaretler seçilen parçayı gösterir. Model doğruluğu garanti değildir.</p><div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div></div></section>
+<section class="panel"><div class="block"><div class="headline"><h2>Komponentler</h2><span id="count" class="counter">0 aday</span></div><p class="note">Sarı kutular model tahminidir. Yeşil işaretler seçilen parçayı gösterir. Model doğruluğu garanti değildir.</p><div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div>
+<div class="actions"><button id="removeRegion" disabled>× Yanlış adayı kaldır</button></div>
+</div></section>
 <section class="panel"><div class="block"><div class="headline"><h2>Fluke ölçüm rehberi</h2><span class="counter">Enerjisiz</span></div>
 <p class="note warning">Önce kartın enerjisini kes. Artık gerilimi kontrol et; kondansatörleri güvenli biçimde boşalt. Şebeke/yüksek gerilimli kartlarda bu rehberi kullanma.</p>
 <div id="selectionFields" hidden>
@@ -106,6 +108,11 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <div class="field"><label for="notes">Teknisyen notu (isteğe bağlı)</label><textarea id="notes" rows="2" placeholder="Prob noktaları, ters yön okuması, parça kodu..."></textarea></div>
 <details style="margin-top:12px"><summary class="note" style="cursor:pointer">Doğrulanmış referans aralığı ekle (isteğe bağlı)</summary>
 <p class="note warning" style="margin-top:8px">Yalnızca servis dokümanında aynı ölçüm modu ve koşullar için belirtilen aralığı kullan. Buradaki değerler otomatik tahmin edilmez.</p>
+<div class="field"><label for="partNumber">Parça kodu veya doğrulanmış nominal tanımı</label><input id="partNumber" placeholder="Örn. R101 / 4.7 kΩ ±%1"></div>
+<div class="cols"><div class="field"><label for="refMode">Kaynak ölçüm modu</label><select id="refMode">
+<option value="">Seç</option><option value="resistance">Direnç (Ω)</option><option value="diode">Diyot (V)</option><option value="capacitance">Kapasitans (µF)</option><option value="continuity">Süreklilik (Ω)</option>
+</select></div>
+<div class="field"><label for="refCircuit">Kaynak ölçüm koşulu</label><select id="refCircuit"><option value="">Seç</option><option value="in_circuit">Devre üzerinde</option><option value="out_of_circuit">Devreden ayrılmış</option></select></div></div>
 <div class="cols"><div class="field"><label for="min">Alt sınır</label><input id="min" inputmode="decimal" placeholder="Min"></div><div class="field"><label for="max">Üst sınır</label><input id="max" inputmode="decimal" placeholder="Max"></div></div>
 <div class="field"><label for="source">Kaynak (HTTPS servis dokümanı)</label><input id="source" type="url" placeholder="https://..."></div>
 <div class="field"><label for="conditions">Referans koşulları</label><input id="conditions" placeholder="Örn. devreden ayrılmış 25°C"></div>
@@ -116,10 +123,19 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 </div>
 <div id="noSelection" class="note" style="margin-top:12px">Önce fotoğraftaki bir kutuyu veya komponent listesinden bir satırı seç. Model hiç parça bulamazsa <b>Elle işaretle</b> seçeneğini kullan.</div>
 </div></section>
+<section class="panel"><div class="block"><div class="headline"><h2>Model eğitim etiketi</h2><span class="counter">İnsan onaylı</span></div>
+<p class="note">Modelin hatalı kutularını kaldır, eksik parçaları elle çiz ve her parçanın türünü onayla. Aynı fiziksel kartın bütün fotoğraflarında <b>aynı kart kimliğini</b> kullan.</p>
+<div class="field"><label for="boardId">Fiziksel kart kimliği</label>
+<input id="boardId" maxlength="64" placeholder="Örn. kart_001"></div>
+<label class="toggle"><input id="completedReview" type="checkbox"> Fotoğrafta görünen bütün komponentleri işaretleyip doğruladım</label>
+<button id="exportLabels" style="width:100%;margin-top:12px" disabled>↓ Eğitim etiketi JSON indir</button>
+<div id="trainingStatus" class="note" role="status" style="margin-top:9px"></div>
+<p class="note" style="margin-top:7px">İndirilen JSON ve fotoğrafı aynı klasöre koy. Fotoğraf/sistem onayın olmadan veri toplamaz.</p></div></section>
 <section class="panel"><div class="block"><div class="headline"><h2>Ölçüm geçmişi</h2><span id="readingCount" class="counter">0 kayıt</span></div><div id="history" class="note">Henüz ölçüm kaydedilmedi.</div><div class="actions"><button id="export" disabled>↓ JSON raporunu indir</button><button id="clear" disabled>Ölçümleri temizle</button></div><p class="note" style="margin-top:8px">Oturum bilgileri bu sayfada tutulur; sayfayı kapatmadan önce JSON raporunu indir.</p></div></section>
 </aside>
 </main>
 <footer><b>Önemli:</b> Görüntüden pin numarası, nominal değer veya parçanın sağlamlığı güvenilir biçimde çıkarılamaz. Model tespiti, ölçüm rehberi ve tek ölçüm arıza kararı değildir. Kullanıcı doğrulaması gerekir.</footer>
+<script src="/web_review.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), vp=$('viewport'),photo=$('photo'),canvas=$('overlay'),ctx=canvas.getContext('2d');
@@ -165,6 +181,8 @@ function current(){return regions[selected];}
 function changeSelected(n){selected=n;draw();showRegions();showGuide();}
 function showRegions(){
 $('count').textContent=regions.length+' aday';
+$('removeRegion').disabled=selected<0;
+$('exportLabels').disabled=!imgW||!regions.length;
 const root=$('results');root.replaceChildren();
 if(!regions.length){const p=document.createElement('p');p.className='note';p.style.marginTop='12px';p.textContent='Komponent bulunamadı. Elle işaretle seçeneğini kullanabilirsin.';root.append(p);return;}
 regions.forEach((r,i)=>{const b=document.createElement('button');b.type='button';b.className='item'+(i===selected?' sel':'');const left=document.createElement('span');left.textContent=(i+1)+'. '+r.label;const sub=document.createElement('span');sub.className='minor';sub.textContent=r.source==='manual'?'Elle işaretlendi':(typeof r.confidence==='number'?Math.round(r.confidence*100)+'% model güveni · doğrulanmadı':'Model tahmini · doğrulanmadı');left.append(sub);b.append(left);const arrow=document.createElement('span');arrow.textContent='›';b.append(arrow);b.onclick=()=>changeSelected(i);root.append(b);});
@@ -181,9 +199,28 @@ $('assessment').textContent='';
 }
 function toggleManual(active){marking=active;$('manual').classList.toggle('active',active);vp.classList.toggle('marking',active);status(active?'Kartın üstünde sol tuşla sürükleyerek parça kutusu çiz.':'Elle işaretleme kapandı.');}
 const opts=$('partType');LABELS.forEach(k=>{let o=document.createElement('option');o.value=k;o.textContent=k;opts.append(o);});
-$('partType').onchange=()=>{const r=current();if(!r)return;r.label=opts.value;r.confirmed=false;showRegions();showGuide();};
-$('confirmed').onchange=()=>{if(current())current().confirmed=$('confirmed').checked;};
+$('partType').onchange=()=>{const r=current();if(!r)return;r.label=opts.value;r.confirmed=false;$('completedReview').checked=false;showRegions();showGuide();};
+$('confirmed').onchange=()=>{if(current())current().confirmed=$('confirmed').checked;$('completedReview').checked=false;};
 $('manual').onclick=()=>toggleManual(!marking);
+$('removeRegion').onclick=()=>{
+ const r=current();if(!r)return;
+ if(records.some(x=>x.region_id===r.id)){status('Bu parçanın ölçüm kaydı var. Önce JSON raporunu indirip ölçümleri temizle.','warn');return;}
+ regions.splice(selected,1);selected=-1;$('completedReview').checked=false;showRegions();showGuide();draw();
+ status('Yanlış veya mükerrer aday kaldırıldı.','good');
+};
+$('exportLabels').onclick=()=>{
+ try{
+  const doc=NovaReview.trainingAnnotation({
+    boardId:$('boardId').value,image:photoName,width:imgW,height:imgH,
+    regions,completedReview:$('completedReview').checked
+  });
+  const name='nova-etiket-'+doc.board_id+'-'+photoName.replace(/.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_')+'.json';
+  const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  $('trainingStatus').textContent=doc.regions.length+' doğrulanmış komponentin etiketi indirildi. Fotoğrafla aynı klasöre koy.';
+ }catch(e){$('trainingStatus').textContent=e.message;}
+};
 $('change').onclick=()=>$('file').click();$('zoomIn').onclick=()=>zoomAt(1.25);$('zoomOut').onclick=()=>zoomAt(.8);$('fit').onclick=fit;
 $('reanalyze').onclick=()=>{if(records.length&&!confirm('Tekrar tarama mevcut ölçüm kayıtlarının komponent numaralarıyla eşleşmesini etkileyebilir. Yine de taransın mı?'))return;analyze();};
 $('file').onchange=e=>{if(e.target.files[0])openFile(e.target.files[0]);e.target.value='';};
@@ -209,7 +246,7 @@ if(marking&&drawStart&&drawEnd){
 const a=screenToImage(Math.min(drawStart[0],drawEnd[0]),Math.min(drawStart[1],drawEnd[1]));
 const b=screenToImage(Math.max(drawStart[0],drawEnd[0]),Math.max(drawStart[1],drawEnd[1]));
 const box=[Math.max(0,a[0]),Math.max(0,a[1]),Math.min(imgW,b[0]),Math.min(imgH,b[1])];drawStart=null;drawEnd=null;
-if(wasMoved&&validBox(box)&&box[2]-box[0]>=3&&box[3]-box[1]>=3){regions.push({label:'Bilinmiyor',source:'manual',confidence:null,confirmed:false,bbox_xyxy_pixels:box,id:++seq});changeSelected(regions.length-1);status('Yeni komponent işaretlendi. Tipini doğrulayıp ölçüm girebilirsin.','good');}else draw();
+if(wasMoved&&validBox(box)&&box[2]-box[0]>=3&&box[3]-box[1]>=3){regions.push({label:'Bilinmiyor',source:'manual',confidence:null,confirmed:false,bbox_xyxy_pixels:box,id:++seq});$('completedReview').checked=false;changeSelected(regions.length-1);status('Yeni komponent işaretlendi. Tipini doğrulayıp ölçüm girebilirsin.','good');}else draw();
 }else if(!wasMoved&&imgW){
 const rect=vp.getBoundingClientRect(),p=screenToImage(e.clientX-rect.left,e.clientY-rect.top);
 for(let i=regions.length-1;i>=0;i--){let b=boxOf(regions[i]);if(validBox(b)&&p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3]){changeSelected(i);break;}}
@@ -222,7 +259,7 @@ if(records.length&&!confirm('Yeni fotoğraf açınca kaydedilmemiş ölçümler 
 if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Yalnız JPG/PNG/WebP ve en fazla 12 MB dosya desteklenir.','warn');return;}
 const token=++requestId,reader=new FileReader();
 reader.onerror=()=>status('Fotoğraf okunamadı.','warn');
-reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
+reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;$('boardId').value='';$('completedReview').checked=false;$('trainingStatus').textContent='';drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
 reader.readAsDataURL(file);
 }
 function analysisImage(){
@@ -244,7 +281,7 @@ const response=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'ap
 let payload=await response.json();if(token!==requestId)return;
 if(!response.ok)throw new Error(payload.error||'Tarama işlemi başarısız');
 const found=Array.isArray(payload.detections)?payload.detections:[];
-regions=regions.filter(r=>r.source==='manual');
+regions=regions.filter(r=>r.source==='manual');$('completedReview').checked=false;
 const analyzedW=Number(payload.image_width)||imgW,analyzedH=Number(payload.image_height)||imgH;
 found.forEach(r=>{const raw=boxOf(r);if(!validBox(raw))return;const box=[raw[0]*imgW/analyzedW,raw[1]*imgH/analyzedH,raw[2]*imgW/analyzedW,raw[3]*imgH/analyzedH];if(!validBox(box))return;regions.push({id:++seq,label:String(r.label||'Bilinmiyor'),source:'model',confidence:typeof r.confidence==='number'?r.confidence:null,confirmed:false,bbox_xyxy_pixels:box,source_label:r.source_label||null});});
 selected=-1;showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday';
@@ -252,7 +289,7 @@ status(found.length?found.length+' model adayı işaretlendi. Seçerek doğrula 
 }catch(err){if(token!==requestId)return;$('modelState').textContent='Model taranamadı';status(err.name==='AbortError'?'Tarama zaman aşımına uğradı. Manuel işaretleme kullanılabilir.':'Model taranamadı: '+err.message+'. Elle işaretleme yapabilirsin.','warn');}
 finally{clearTimeout(timeout);if(token===requestId)$('reanalyze').disabled=false;}
 }
-function decimal(input){const s=String(input).trim().replace(',','.');if(!/^\d+(\.\d+)?$/.test(s))return null;const n=Number(s);return Number.isFinite(n)?n:null;}
+const decimal=NovaReview.parseDecimal;
 function showHistory(){
 $('readingCount').textContent=records.length+' kayıt';$('export').disabled=!records.length;$('clear').disabled=!records.length;
 const root=$('history');root.replaceChildren();if(!records.length){root.textContent='Henüz ölçüm kaydedilmedi.';return;}
@@ -263,14 +300,19 @@ const r=current();if(!r)return;const reading=decimal($('value').value);if(readin
 if(!$('confirmed').checked||$('partType').value==='Bilinmiyor'){$('assessment').textContent='Önce komponent türünü doğrula. Ölçüm değerlendirmesi yapılamadı.';return;}
 const modes={resistance:'Ω',diode:'V',capacitance:'µF',continuity:'Ω'};
 const mode=$('mode').value,unit=modes[mode],state=$('circuit').value,low=decimal($('min').value),high=decimal($('max').value);
-const withReference=$('min').value.trim()||$('max').value.trim()||$('referenceVerified').checked||$('source').value.trim()||$('conditions').value.trim();
-let result='Ölçüm kaydedildi — referans olmadan karar verilemez';
+const withReference=Boolean($('min').value.trim()||$('max').value.trim()||$('referenceVerified').checked||$('source').value.trim()||$('conditions').value.trim()||$('partNumber').value.trim()||$('refMode').value||$('refCircuit').value);
+let result='Ölçüm kaydedildi — doğrulanmış referans olmadan arıza/sağlamlık kararı verilemez';
 if(withReference){
-if(low===null||high===null||low>high||!$('referenceVerified').checked||!/^https:\/\/[^ ]+\.[^ ]+/.test($('source').value.trim())||!$('conditions').value.trim()){$('assessment').textContent='Referansla karşılaştırma için doğrulanmış HTTPS kaynak, koşullar, min-max ve onay gerekli.';return;}
-if(state==='in_circuit'){result='Ek doğrulama gerekli — devre içi paralel yollar etkileyebilir';}
-else result=reading>=low&&reading<=high?'Doğrulanmış referans aralığında (sağlamlık kanıtı değil)':'Referans dışında — ölçüm ve koşulları tekrar doğrula';
+ try{
+  result=NovaReview.evaluateReference({
+   reading,mode,circuitState:state,referenceMode:$('refMode').value,
+   referenceState:$('refCircuit').value,minimum:$('min').value,maximum:$('max').value,
+   sourceUrl:$('source').value.trim(),conditions:$('conditions').value.trim(),
+   partNumber:$('partNumber').value.trim(),technicianVerified:$('referenceVerified').checked
+  }).message;
+ }catch(e){$('assessment').textContent=e.message;return;}
 }
-const record={timestamp:new Date().toISOString(),region:selected+1,part:$('partType').value,modelSource:r.source,confirmed:true,bbox_xyxy_pixels:r.bbox_xyxy_pixels,mode,unit,reading,circuit_state:state,notes:$('notes').value.trim(),reference:withReference?{min:low,max:high,url:$('source').value.trim(),conditions:$('conditions').value.trim(),technician_verified:true}:null,result};
+const record={timestamp:new Date().toISOString(),region:selected+1,region_id:r.id,part:$('partType').value,modelSource:r.source,confirmed:true,bbox_xyxy_pixels:r.bbox_xyxy_pixels,mode,unit,reading,circuit_state:state,notes:$('notes').value.trim(),reference:withReference?{min:low,max:high,url:$('source').value.trim(),conditions:$('conditions').value.trim(),part_number:$('partNumber').value.trim(),mode:$('refMode').value,circuit_state:$('refCircuit').value,technician_verified:true}:null,result};
 records.push(record);$('assessment').textContent=result;showHistory();$('value').value='';$('notes').value='';
 };
 $('export').onclick=()=>{
