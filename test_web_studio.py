@@ -150,6 +150,43 @@ class WebStudioTests(unittest.TestCase):
                                            "Origin": "https://other.example"})
         self.assertEqual(code, 403)
 
+    def test_similar_diode_and_capacitor_scores_require_review_without_relabeling(self):
+        output = web_studio.normalize_detections([{
+            "label": "Diyot",
+            "source_label": "diode",
+            "bbox_xyxy_pixels": [10, 10, 55, 95],
+            "confidence": .47,
+            "alternatives": [
+                {"label": "Diyot", "source_label": "diode", "confidence": .47},
+                {"label": "Kondansatör", "source_label": "capacitor", "confidence": .37},
+            ],
+        }], 120, 130)
+        self.assertEqual(output[0]["label"], "Diyot")
+        self.assertTrue(output[0]["review_required"])
+        self.assertIn("skorları yakın", output[0]["review_note"])
+        self.assertFalse(output[0]["verified"])
+
+    def test_overlap_conflict_marks_both_visual_guesses_for_manual_review(self):
+        example = [
+            {"label":"Diyot", "bbox_xyxy_pixels":[10,10,40,80], "confidence":.7},
+            {"label":"Kondansatör", "bbox_xyxy_pixels":[11,11,41,81], "confidence":.6},
+            {"label":"Direnç", "bbox_xyxy_pixels":[70,70,110,110], "confidence":.9}
+        ]
+        result=web_studio.normalize_detections(example,120,120)
+        self.assertEqual([x["label"] for x in result],["Diyot","Kondansatör","Direnç"])
+        self.assertTrue(result[0]["review_required"])
+        self.assertTrue(result[1]["review_required"])
+        self.assertFalse(result[2]["review_required"])
+        self.assertIn("çakışan",result[0]["review_note"])
+
+    def test_distant_diode_and_capacitor_are_not_marked_as_conflict(self):
+        items=[
+            {"label":"Diyot", "bbox_xyxy_pixels":[1,1,15,15], "confidence":.9},
+            {"label":"Kondansatör", "bbox_xyxy_pixels":[90,90,110,110], "confidence":.8},
+        ]
+        out=web_studio.normalize_detections(items,120,120)
+        self.assertFalse(any(x["review_required"] for x in out))
+
     def test_real_png_and_mock_model_return_pixel_boxes(self):
         example = {"label": "Direnç", "source_label": "Resistor",
                    "bbox_xyxy_pixels": [3, 5, 21, 25], "confidence": 0.87}
