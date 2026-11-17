@@ -12,6 +12,7 @@ on:
       - 'test_web_corrections.cjs'
       - 'test_web_component_knowledge.cjs'
       - 'test_web_review.cjs'
+      - 'test_web_image_resolution.cjs'
       - 'test_web_studio.py'
       - 'test_web_security.py'
       - '.github/workflows/web-studio-smoke.yml'
@@ -27,6 +28,7 @@ on:
       - 'test_web_corrections.cjs'
       - 'test_web_component_knowledge.cjs'
       - 'test_web_review.cjs'
+      - 'test_web_image_resolution.cjs'
       - 'test_web_studio.py'
       - 'test_web_security.py'
       - '.github/workflows/web-studio-smoke.yml'
@@ -59,7 +61,7 @@ jobs:
           node --check web_component_knowledge.js
           node --check web_corrections.js
       - name: Technician review and reference-rule tests
-        run: node --test test_web_review.cjs test_web_component_knowledge.cjs test_web_corrections.cjs
+        run: node --test test_web_review.cjs test_web_component_knowledge.cjs test_web_corrections.cjs test_web_image_resolution.cjs
       - name: Verify exported labels with Python training validator
         run: |
           node - <<'JS' > /tmp/nova-annotation.json
@@ -76,7 +78,7 @@ jobs:
           with open('/tmp/nova-annotation.json', encoding='utf-8') as handle:
               item = json.load(handle)
           assert len(validate_annotation(item)) == 1
-          print('Web labels match NOVA 14-class training schema')
+          print('Web labels match NOVA current technician-review class schema')
           PY
       - name: HTTP integration tests without model or internet
         run: python -m unittest -v test_web_studio test_web_security test_web_onnx_detector
