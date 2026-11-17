@@ -3,8 +3,8 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const kb=require("./web_component_knowledge.js");
 
-test("knowledge table covers all 24 training classes and never claims health",()=>{
-  assert.equal(kb.LABELS.length,24);
+test("knowledge table covers all 28 technician review classes and never claims health",()=>{
+  assert.equal(kb.LABELS.length,28);
   for(const label of kb.LABELS){
     const item=kb.knowledge(label);
     assert.ok(item.mode);
@@ -14,6 +14,11 @@ test("knowledge table covers all 24 training classes and never claims health",()
   assert.equal(kb.knowledge("Batarya").mode,"none");
   assert.equal(kb.knowledge("Soğutucu").mode,"none");
   assert.equal(kb.knowledge("Sigorta").mode,"continuity");
+  assert.equal(kb.knowledge("Elektrolitik Kondansatör").mode,"capacitance");
+  assert.equal(kb.knowledge("Zener Diyot").typical_range,null);
+  assert.equal(kb.knowledge("Ferrit Boncuk").mode,"resistance");
+  assert.equal(kb.knowledge("Jumper").mode,"continuity");
+  assert.equal(kb.knowledge("Elektrolitik Kondansatör","100uF 25V").marking.nominal_pf,100000000);
   assert.match(kb.knowledge("Trimpot").explanation,/sürgü|Sürgü/i);
 });
 
