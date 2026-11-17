@@ -1,170 +1,248 @@
-"""NOVA DCG private local web prototype. Binds only to loopback, never deploy as-is."""
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
-from tempfile import TemporaryDirectory
+"""NOVA DCG authenticated PCB web workbench.
+
+Temporary image data is removed at the end of each request. Detection is an
+unverified visual suggestion; never infer electrical health from a photo.
+"""
 import base64
+import binascii
 import json
+import logging
+import math
 import os
 import secrets
-import logging
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from threading import BoundedSemaphore
 from urllib.parse import urlsplit
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
+LOG = logging.getLogger("nova_web")
+logging.basicConfig(level=logging.INFO)
+ROOT = Path(__file__).resolve().parent
 HOST = os.environ.get("NOVA_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
 AUTH_USER = os.environ.get("NOVA_AUTH_USER", "")
 AUTH_PASSWORD = os.environ.get("NOVA_AUTH_PASSWORD", "")
-logging.basicConfig(level=logging.INFO)
-MAX_BODY = 16 * 1024 * 1024
-PAGE = r'''<!doctype html><html lang="tr"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NOVA DCG • PCB Studio</title>
-<style>
-:root{color-scheme:dark;font-family:system-ui,Arial;background:#0b1220;color:#e8eefb}
-*{box-sizing:border-box}body{margin:0}header{padding:18px 26px;background:#121e30;border-bottom:1px solid #30405a;display:flex;justify-content:space-between}
-main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;padding:20px;max-width:1600px;margin:auto}
-section,aside{background:#152238;border:1px solid #30405a;border-radius:16px;padding:18px}
-#drop{border:2px dashed #5a779e;border-radius:12px;min-height:65vh;display:grid;place-items:center;overflow:hidden;position:relative;cursor:pointer;background:#0d1727}
-#drop.drag{border-color:#61d6c1;background:#20364b}
-#viewport{width:100%;height:65vh;overflow:hidden;display:none;position:relative;cursor:grab}
-#image{position:absolute;transform-origin:0 0;max-width:none;user-select:none;pointer-events:none}
-#overlay{position:absolute;inset:0;pointer-events:none}
-button{background:#294563;border:1px solid #517497;color:white;border-radius:9px;padding:10px 13px;cursor:pointer;margin:3px}
-button:hover{background:#386185}h2{margin-top:0}small,.muted{color:#9db1ce}#status{margin-top:12px;min-height:22px}
-.result{padding:10px;border-bottom:1px solid #33465e;cursor:pointer}.result:hover{background:#253953}
-@media(max-width:850px){main{grid-template-columns:1fr}#drop,#viewport{min-height:45vh;height:45vh}}
-</style><header><strong>NOVA DCG / PCB STUDIO</strong><span>Özel yerel önizleme</span></header>
-<main><section><h2>Kart fotoğrafı</h2><div>
-<button id="change">Fotoğraf değiştir</button><button id="plus">＋</button><button id="minus">－</button><button id="fit">Sığdır</button></div>
-<input id="file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-<div id="drop"><div id="hint">PCB fotoğrafını buraya sürükle veya tıkla<br><small>PNG · JPG · WebP (en fazla 12 MB)</small></div>
-<div id="viewport"><img id="image" alt="PCB fotoğrafı"><canvas id="overlay"></canvas></div></div>
-<div id="status" role="status">Fotoğraf bekleniyor.</div></section>
-<aside><h2>Komponent adayları</h2><p class="muted">Model tahminleri elektriksel arıza kanıtı değildir.</p>
-<div id="results">Henüz analiz yok.</div><h2>Fluke rehberi</h2><div id="fluke">Bir komponent seç.</div>
-<p class="muted">Enerjiyi kesin, kondansatörlerin boşaldığını doğrula. Devre içi ölçüm yanıltıcı olabilir.</p></aside></main>
-<script>
-const $=id=>document.getElementById(id), drop=$('drop'),vp=$('viewport'),im=$('image'),cv=$('overlay');
-let data=[],zoom=1,ox=0,oy=0,dragging=false,lastX=0,lastY=0;
-function render(){im.style.transform=`translate(${ox}px,${oy}px) scale(${zoom})`;cv.width=vp.clientWidth;cv.height=vp.clientHeight;
-let c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);c.lineWidth=2;c.font='12px system-ui';
-data.forEach((d,i)=>{let b=d.bbox||d.box||d.xyxy;if(!Array.isArray(b)||b.length<4)return;
-let x=ox+b[0]*zoom,y=oy+b[1]*zoom,w=(b[2]-b[0])*zoom,h=(b[3]-b[1])*zoom;
-c.strokeStyle='#f9b54b';c.strokeRect(x,y,w,h);c.fillStyle='#f9b54b';c.fillText(String(i+1),x+3,y+13)})}
-function fit(){zoom=Math.min(vp.clientWidth/im.naturalWidth,vp.clientHeight/im.naturalHeight);ox=(vp.clientWidth-im.naturalWidth*zoom)/2;oy=(vp.clientHeight-im.naturalHeight*zoom)/2;render()}
-function scale(f){zoom=Math.max(.05,Math.min(12,zoom*f));render()}
-$('plus').onclick=()=>scale(1.25);$('minus').onclick=()=>scale(.8);$('fit').onclick=fit;
-$('change').onclick=()=>$('file').click();drop.onclick=e=>{if(e.target===drop||e.target===$('hint'))$('file').click()};
-$('file').onchange=e=>{if(e.target.files[0])load(e.target.files[0])};
-drop.ondragover=e=>{e.preventDefault();drop.classList.add('drag')};
-drop.ondragleave=()=>drop.classList.remove('drag');
-drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag');if(e.dataTransfer.files[0])load(e.dataTransfer.files[0])};
-vp.onwheel=e=>{e.preventDefault();scale(e.deltaY<0?1.15:.87)};
-vp.onpointerdown=e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;vp.setPointerCapture(e.pointerId)};
-vp.onpointermove=e=>{if(!dragging)return;ox+=e.clientX-lastX;oy+=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;render()};
-vp.onpointerup=()=>dragging=false;window.onresize=()=>{if(im.naturalWidth)render()};
-const modes={resistor:'Ω (direnç)',capacitor:'Kapasitans (enerjisiz, deşarj edilmiş)',diode:'Diyot testi',led:'Diyot testi',inductor:'Ω (direnç)',connector:'Süreklilik',mosfet:'Diyot testi; pin dizilimini doğrula',transistor:'Diyot testi; pin dizilimini doğrula'};
-function show(){let out=$('results');out.replaceChildren();if(!data.length){out.textContent='Komponent adayı bulunamadı.';return}
-data.forEach((d,i)=>{let name=String(d.label||d.class_name||d.name||d.type||'Bilinmeyen');
-let item=document.createElement('div');item.className='result';item.textContent=(i+1)+'. '+name+' — '+(typeof d.confidence==='number'?(d.confidence*100).toFixed(0)+'% güven':'güven belirtilmedi');
-item.onclick=()=>{$('fluke').textContent=(modes[name.toLowerCase()]||'Şema ve datasheet doğrulaması gerekli')+'. Ölçüm değeri yalnızca doğrulanmış referansla yorumlanır.'};out.append(item)})}
-async function load(file){if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>12*1024*1024){$('status').textContent='Desteklenmeyen format veya 12 MB sınırı aşıldı.';return}
-const reader=new FileReader();reader.onload=async()=>{im.onload=fit;im.src=reader.result;vp.style.display='block';$('hint').style.display='none';data=[];show();$('status').textContent='Analiz çalışıyor…';
-try{let response=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:reader.result})});let payload=await response.json();if(!response.ok)throw Error(payload.error||'Analiz başarısız');data=payload.detections;show();render();$('status').textContent=data.length+' komponent adayı bulundu. Tahminler doğrulanmalıdır.'}
-catch(e){$('status').textContent='Analiz hatası: '+e.message}};reader.readAsDataURL(file)}
-</script></html>'''
+MAX_IMAGE_BYTES = 12 * 1024 * 1024
+MAX_BODY_BYTES = 17 * 1024 * 1024
+MAX_IMAGE_PIXELS = 50_000_000
+INFERENCE_SLOT = BoundedSemaphore(value=1)
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+
+SECURITY_CSP = (
+    "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
+    "form-action 'none'; img-src 'self' data: blob:; "
+    "style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+    "connect-src 'self'"
+)
+
+
+class ClientInputError(Exception):
+    """A request validation error suitable for a brief user-facing message."""
+
+
+def normalize_detections(detections, width, height):
+    """Emit JSON-compatible, pixel-based boxes matching the displayed image.
+
+    Model results use bbox_xyxy_pixels (NOT bbox/box/xyxy). Do not replace an
+    unknown class with an invented name or treat confidence as accuracy.
+    """
+    if not isinstance(detections, (list, tuple)):
+        raise ValueError("Detector must return a list")
+    output = []
+    for item in detections[:250]:
+        if not isinstance(item, dict):
+            if not hasattr(item, "__dict__"):
+                continue
+            item = vars(item)
+        box = item.get("bbox_xyxy_pixels")
+        if not isinstance(box, (list, tuple)) or len(box) != 4:
+            continue
+        try:
+            x1, y1, x2, y2 = [float(v) for v in box]
+        except (ValueError, TypeError):
+            continue
+        if not all(math.isfinite(v) for v in (x1, y1, x2, y2)):
+            continue
+        x1, y1 = max(0.0, x1), max(0.0, y1)
+        x2, y2 = min(float(width), x2), min(float(height), y2)
+        if x1 >= x2 or y1 >= y2:
+            continue
+        confidence = item.get("confidence")
+        if isinstance(confidence, (int, float)) and math.isfinite(confidence):
+            confidence = min(1.0, max(0.0, float(confidence)))
+        else:
+            confidence = None
+        output.append({
+            "label": str(item.get("label", "Bilinmiyor"))[:80],
+            "source_label": str(item.get("source_label", ""))[:80],
+            "bbox_xyxy_pixels": [x1, y1, x2, y2],
+            "confidence": confidence,
+            "source": "model",
+            "verified": False,
+        })
+    return output
+
+
+def decode_photo(body):
+    """Decode a single JPG, PNG or WebP data URL and normalize its orientation."""
+    if not isinstance(body, dict):
+        raise ClientInputError("Geçersiz JSON verisi.")
+    image = body.get("image")
+    if not isinstance(image, str) or len(image) > MAX_BODY_BYTES:
+        raise ClientInputError("Fotoğraf verisi geçersiz veya çok büyük.")
+    if not image.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")):
+        raise ClientInputError("Yalnızca JPG, PNG ve WebP fotoğrafları kabul edilir.")
+    try:
+        raw = base64.b64decode(image.split(",", 1)[1], validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ClientInputError("Fotoğraf Base64 kodlaması geçersiz.") from exc
+    if not raw or len(raw) > MAX_IMAGE_BYTES:
+        raise ClientInputError("Fotoğraf boş veya 12 MB sınırını aşıyor.")
+    try:
+        with Image.open(BytesIO(raw)) as opened:
+            if opened.format not in {"JPEG", "PNG", "WEBP"}:
+                raise ClientInputError("Desteklenmeyen fotoğraf biçimi.")
+            if opened.width * opened.height > MAX_IMAGE_PIXELS:
+                raise ClientInputError("Fotoğraf çözünürlüğü çok yüksek.")
+            image = ImageOps.exif_transpose(opened).convert("RGB")
+            return image
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise ClientInputError("Fotoğraf okunamadı veya güvenli boyut sınırını aştı.") from exc
 
 
 class Handler(BaseHTTPRequestHandler):
+    server_version = "NovaDCG/2"
+    sys_version = ""
+
+    def log_message(self, fmt, *args):
+        LOG.info("%s - %s", self.address_string(), fmt % args)
+
+    def base_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", SECURITY_CSP)
+
+    def send_payload(self, code, payload, content_type="application/json", head=False):
+        if isinstance(payload, str):
+            encoded = payload.encode("utf-8")
+        else:
+            encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        self.send_response(code)
+        self.base_headers()
+        self.send_header("Content-Type", content_type + "; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        if not head:
+            self.wfile.write(encoded)
+
     def require_auth(self):
         header = self.headers.get("Authorization", "")
         valid = False
-        if header.startswith("Basic ") and AUTH_USER and AUTH_PASSWORD:
+        if len(header) <= 2048 and header.startswith("Basic ") and AUTH_USER and AUTH_PASSWORD:
             try:
-                user, password = base64.b64decode(header[6:], validate=True).decode().split(":", 1)
-                valid = secrets.compare_digest(user, AUTH_USER) and secrets.compare_digest(password, AUTH_PASSWORD)
-            except (ValueError, UnicodeError):
+                decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
+                user, password = decoded.split(":", 1)
+                valid = (
+                    secrets.compare_digest(user, AUTH_USER)
+                    and secrets.compare_digest(password, AUTH_PASSWORD)
+                )
+            except (UnicodeError, ValueError, binascii.Error):
                 pass
         if valid:
             return False
         self.send_response(401)
+        self.base_headers()
         self.send_header("WWW-Authenticate", 'Basic realm="NOVA DCG Private"')
-        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", "0")
         self.end_headers()
         return True
 
-    def send(self, code, obj, mime="application/json"):
-        payload = obj.encode("utf-8") if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", mime + "; charset=utf-8")
-        self.send_header("Content-Length", str(len(payload)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def do_HEAD(self):
+    def handle_get(self, head=False):
+        path = urlsplit(self.path).path
+        # Safe, credential-free service readiness for Render health checks.
+        if path == "/healthz":
+            return self.send_payload(200, {"status": "ok", "app": "nova-dcg-web"}, head=head)
         if self.require_auth():
             return
-        if urlsplit(self.path).path == "/":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(PAGE.encode("utf-8"))))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        self.send_response(404)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+        if path == "/":
+            content = (ROOT / "web_studio.html").read_text(encoding="utf-8")
+            return self.send_payload(200, content, "text/html", head=head)
+        return self.send_payload(404, {"error": "Sayfa bulunamadı."}, head=head)
 
     def do_GET(self):
-        if self.require_auth():
-            return
-        if urlsplit(self.path).path == "/":
-            return self.send(200, PAGE, "text/html")
-        self.send(404, {"error": "Not found"})
+        self.handle_get()
+
+    def do_HEAD(self):
+        self.handle_get(head=True)
 
     def do_POST(self):
         if self.require_auth():
             return
         if urlsplit(self.path).path != "/analyze":
-            return self.send(404, {"error": "Not found"})
+            return self.send_payload(404, {"error": "Sayfa bulunamadı."})
+        # Browser same-origin requests; do not authorize cross-origin POSTs.
+        origin = self.headers.get("Origin")
+        if origin:
+            parts = urlsplit(origin)
+            if parts.netloc.lower() != self.headers.get("Host", "").lower() or parts.scheme not in {"https", "http"}:
+                return self.send_payload(403, {"error": "İstek kaynağı doğrulanamadı."})
+        if self.headers.get("Content-Type", "").split(";", 1)[0].lower().strip() != "application/json":
+            return self.send_payload(415, {"error": "JSON gerekli."})
         try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if size <= 0 or size > MAX_BODY:
-                return self.send(413, {"error": "İstek boyutu sınırı aşıldı."})
-            body = json.loads(self.rfile.read(size))
-            encoded = body["image"].split(",", 1)[1]
-            raw = base64.b64decode(encoded, validate=True)
-            if len(raw) > 12 * 1024 * 1024:
-                return self.send(413, {"error": "Fotoğraf çok büyük."})
-            with TemporaryDirectory(prefix="nova_web_") as tmp:
-                path = Path(tmp) / "board.png"
-                from io import BytesIO
-                with Image.open(BytesIO(raw)) as source:
-                    source = ImageOps.exif_transpose(source)
-                    if source.width * source.height > 50_000_000:
-                        return self.send(413, {"error": "Görüntü çözünürlüğü çok yüksek."})
-                    source.convert("RGB").save(path)
-                from auto_detector import automatic_detect
-                detections = automatic_detect(path)
-                clean = []
-                for item in detections:
-                    if isinstance(item, dict):
-                        clean.append(item)
-                    elif hasattr(item, "__dict__"):
-                        clean.append(vars(item))
-                self.send(200, {"detections": clean})
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self.send_payload(400, {"error": "İstek boyutu geçersiz."})
+        if length <= 0 or length > MAX_BODY_BYTES:
+            return self.send_payload(413, {"error": "İstek boyutu sınırı aşıldı."})
+        if not INFERENCE_SLOT.acquire(blocking=False):
+            return self.send_payload(429, {"error": "Başka bir kart taranıyor. Biraz sonra tekrar dene."})
+        try:
+            try:
+                body = json.loads(self.rfile.read(length))
+                image = decode_photo(body)
+            except (json.JSONDecodeError, UnicodeError, ClientInputError) as exc:
+                return self.send_payload(400, {"error": str(exc)})
+            with TemporaryDirectory(prefix="nova_pcb_") as directory:
+                path = Path(directory) / "board.png"
+                width, height = image.size
+                image.save(path, format="PNG")
+                image.close()
+                try:
+                    from auto_detector import automatic_detect, DetectorSetupError
+                    detections = automatic_detect(path)
+                except DetectorSetupError as exc:
+                    LOG.warning("PCB detector unavailable: %s", type(exc).__name__)
+                    return self.send_payload(503, {
+                        "error": str(exc)[:350],
+                        "manual_mode_available": True,
+                    })
+                results = normalize_detections(detections, width, height)
+                return self.send_payload(200, {
+                    "detections": results,
+                    "image_width": width,
+                    "image_height": height,
+                    "model_predictions_unverified": True,
+                })
+        except (OSError, ValueError):
+            LOG.exception("PCB image processing failed")
+            return self.send_payload(422, {"error": "Fotoğraf işlenemedi. Farklı bir görüntü dene."})
         except Exception:
-            logging.exception("Analysis failed")
-            self.send(500, {"error": "Sunucu hatası. Yönetici kayıtlarını kontrol edin."})
+            LOG.exception("PCB inference failed")
+            return self.send_payload(500, {"error": "Analiz işlemi başarısız. Logları kontrol et."})
+        finally:
+            INFERENCE_SLOT.release()
 
 
 if __name__ == "__main__":
     if not AUTH_USER or len(AUTH_PASSWORD) < 16:
         raise SystemExit("NOVA_AUTH_USER ve en az 16 karakterli NOVA_AUTH_PASSWORD gerekli.")
-    if HOST not in ("127.0.0.1", "localhost", "::1") and os.environ.get("NOVA_BEHIND_HTTPS_PROXY") != "1":
-        raise SystemExit("Genel ağda yalnızca HTTPS reverse proxy arkasında çalıştırın.")
-    print(f"NOVA DCG local web studio: http://{HOST}:{PORT}")
+    if HOST not in {"127.0.0.1", "localhost", "::1"} and os.environ.get("NOVA_BEHIND_HTTPS_PROXY") != "1":
+        raise SystemExit("Genel ağa yalnızca HTTPS reverse proxy arkasında bağlan.")
+    LOG.info("NOVA DCG private web starting at %s:%s", HOST, PORT)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
