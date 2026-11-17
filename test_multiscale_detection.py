@@ -31,6 +31,34 @@ class DetectionTests(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(sorted(x["source_label"] for x in result), ["Capacitor", "Resistor"])
 
+    def test_capacitor_diode_collision_becomes_one_unverified_candidate(self):
+        cap = {"label": "Kondansatör", "source_label": "Capacitor", "confidence": .78,
+               "bbox_xyxy_pixels": [10, 10, 60, 40]}
+        diode = {"label": "Diyot", "source_label": "Diode", "confidence": .72,
+                 "bbox_xyxy_pixels": [11, 10, 61, 40]}
+        result = deduplicate_detections([cap, diode])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["label"], "Bilinmiyor")
+        self.assertEqual(result[0]["candidate_labels"], ["Kondansatör", "Diyot"])
+        self.assertFalse(result[0]["verified"])
+        review = review_detections(result)
+        self.assertIn("belirsiz", review[0]["display_label"])
+        self.assertIn("çakışması", review[0]["review_note"])
+        task = measurement_plan(review)[0]
+        self.assertEqual(task["component"], "Bilinmiyor")
+        self.assertEqual(task["mode"], "Doğrulama gerekli")
+
+    def test_separated_capacitor_diode_and_other_class_overlap_remain_visible(self):
+        cap = {"label": "Kondansatör", "source_label": "Capacitor", "confidence": .89,
+               "bbox_xyxy_pixels": [10, 10, 30, 40]}
+        diode = {"label": "Diyot", "source_label": "Diode", "confidence": .74,
+                 "bbox_xyxy_pixels": [50, 50, 80, 70]}
+        result = deduplicate_detections([cap, diode])
+        self.assertEqual(len(result), 2)
+        resistor = {"label": "Direnç", "source_label": "Resistor", "confidence": .8,
+                    "bbox_xyxy_pixels": [10, 10, 30, 40]}
+        self.assertEqual(len(deduplicate_detections([cap, resistor])), 2)
+
     def test_unknown_source_class_displayed_without_invented_measurements(self):
         detection = {
             "label": "Diğer: Proprietary", "source_label": "Proprietary",
