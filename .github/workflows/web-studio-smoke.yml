@@ -4,6 +4,8 @@ on:
     paths:
       - 'web_studio.py'
       - 'web_studio.html'
+      - 'web_review.js'
+      - 'test_web_review.cjs'
       - 'test_web_studio.py'
       - 'test_web_security.py'
       - '.github/workflows/web-studio-smoke.yml'
@@ -11,6 +13,8 @@ on:
     paths:
       - 'web_studio.py'
       - 'web_studio.html'
+      - 'web_review.js'
+      - 'test_web_review.cjs'
       - 'test_web_studio.py'
       - 'test_web_security.py'
       - '.github/workflows/web-studio-smoke.yml'
@@ -39,5 +43,26 @@ jobs:
           Path('/tmp/nova-studio.js').write_text(scripts[0], encoding='utf-8')
           PY
           node --check /tmp/nova-studio.js
+          node --check web_review.js
+      - name: Technician review and reference-rule tests
+        run: node --test test_web_review.cjs
+      - name: Verify exported labels with Python training validator
+        run: |
+          node - <<'JS' > /tmp/nova-annotation.json
+          const review = require('./web_review.js');
+          console.log(JSON.stringify(review.trainingAnnotation({
+            boardId:'kart_001',image:'board.png',width:100,height:100,
+            regions:[{label:'Direnç',confirmed:true,bbox_xyxy_pixels:[1,2,20,22]}],
+            completedReview:true
+          })));
+          JS
+          python - <<'PY'
+          import json
+          from dataset import validate_annotation
+          with open('/tmp/nova-annotation.json', encoding='utf-8') as handle:
+              item = json.load(handle)
+          assert len(validate_annotation(item)) == 1
+          print('Web labels match NOVA 14-class training schema')
+          PY
       - name: HTTP integration tests without model or internet
         run: python -m unittest -v test_web_studio test_web_security
