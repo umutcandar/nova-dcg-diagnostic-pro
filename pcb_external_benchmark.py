@@ -208,8 +208,14 @@ if __name__ == "__main__":
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--mode", choices=("fast","detailed"), default="fast")
     args = ap.parse_args()
-    report = benchmark(args.dataset, limit=args.limit)
+    if args.mode == "detailed":
+        from web_onnx_detector import detailed_detect
+        report = benchmark(args.dataset, limit=args.limit, predict=detailed_detect)
+    else:
+        report = benchmark(args.dataset, limit=args.limit)
+    report["model"]["inference_mode"] = args.mode
     destination = Path(args.out)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
