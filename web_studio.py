@@ -244,5 +244,6 @@ if __name__ == "__main__":
         raise SystemExit("NOVA_AUTH_USER ve en az 16 karakterli NOVA_AUTH_PASSWORD gerekli.")
     if HOST not in {"127.0.0.1", "localhost", "::1"} and os.environ.get("NOVA_BEHIND_HTTPS_PROXY") != "1":
         raise SystemExit("Genel ağa yalnızca HTTPS reverse proxy arkasında bağlan.")
-    LOG.info("NOVA DCG private web starting at %s:%s", HOST, PORT)
+    os.environ.setdefault("NOVA_WEB_LOW_RESOURCE", "1")
+    LOG.info("NOVA DCG private web starting at %s:%s (low-resource inference=%s)", HOST, PORT, os.environ["NOVA_WEB_LOW_RESOURCE"])
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
