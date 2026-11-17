@@ -91,6 +91,7 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <input id="file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
 <div id="viewport" tabindex="0" aria-label="Kart fotoğrafı ve komponent kutuları"><img id="photo" alt="Yüklenen elektronik kart fotoğrafı" draggable="false"><canvas id="overlay"></canvas><div id="empty"><div><div class="big">▧</div><strong>PCB fotoğrafını buraya bırak</strong><p class="note" style="margin-top:7px">Ya da tıklayarak JPG, PNG, WebP seç.<br>En fazla 12 MB. Fotoğraf kalıcı olarak sunucuya kaydedilmez.</p></div></div></div>
 <div id="status" role="status" aria-live="polite">Başlamak için bir kart fotoğrafı seç.</div>
+<div id="modelReadiness" class="note" style="padding:9px 17px;border-top:1px solid #2a4155">21 sınıflı ONNX model durumu kontrol ediliyor…</div>
 </section>
 <aside class="side">
 <section class="panel"><div class="block"><div class="headline"><h2>Komponentler</h2><span id="count" class="counter">0 aday</span></div><p class="note">Sarı kutular model tahminidir. Yeşil işaretler seçilen parçayı gösterir. Model doğruluğu garanti değildir.</p><div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div>
@@ -253,7 +254,11 @@ if(!r)return;
 $('partType').value=LABELS.includes(r.label)?r.label:'Bilinmiyor';
 $('confirmed').checked=!!r.confirmed;
 const g=NovaKnowledge.knowledge($('partType').value);
-$('mode').value=g.mode;$('guide').replaceChildren();
+const safeMode=g.mode!=='none';
+$('mode').disabled=!safeMode;
+$('saveReading').disabled=!safeMode;
+$('mode').value=safeMode?g.mode:'resistance';
+$('guide').replaceChildren();
 [['Fluke modu',g.title],['Prob yerleşimi',g.probes],['Beklenen davranış',g.explanation]].forEach(([label,value])=>{
  const div=document.createElement('div'),bold=document.createElement('b');
  bold.textContent=label+': ';div.append(bold,document.createTextNode(value));$('guide').append(div);
@@ -362,14 +367,15 @@ for(const hand of regions.filter(r=>r.source==='manual'&&!r.confirmed&&r.label==
  .sort((a,b)=>b.overlap-a.overlap)[0];
  if(match&&match.overlap>=.35){
    hand.label=match.r.label;
-   hand.source='manual_model_hint';
+   hand.source='manual';
+   hand.model_hint=true;
    hand.confidence=match.r.confidence;
  }
 }
 const candidates=regions.map((r,i)=>({r,i})).filter(x=>LABELS.includes(x.r.label)&&x.r.label!=='Bilinmiyor');
 candidates.sort((a,b)=>(b.r.confidence||0)-(a.r.confidence||0));
 selected=candidates.length?candidates[0].i:-1;
-showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday';
+showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday · 21 sınıf';
 status(found.length?found.length+' model adayı işaretlendi. Seçerek doğrula ve ölç.':'Model aday bulamadı. Elle işaretleme yapabilirsin.',found.length?'good':'warn');
 }catch(err){if(token!==requestId)return;$('modelState').textContent='Model taranamadı';status(err.name==='AbortError'?'Tarama zaman aşımına uğradı. Manuel işaretleme kullanılabilir.':'Model taranamadı: '+err.message+'. Elle işaretleme yapabilirsin.','warn');}
 finally{clearTimeout(timeout);if(token===requestId)$('reanalyze').disabled=false;}
@@ -405,6 +411,17 @@ const doc={schema:'nova-dcg-web-session-v1',exported_at:new Date().toISOString()
 const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='nova-dcg-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
 };
 $('clear').onclick=()=>{if(confirm('Kaydedilen ölçümleri bu sayfadan silmek istiyor musun?')){records=[];showHistory();$('assessment').textContent='';}};
+async function checkModelStatus(){
+ try{
+  const response=await fetch('/model-status',{cache:'no-store'});
+  if(!response.ok)return;
+  const info=await response.json();
+  const labels={ready:'Model dosyası hazır',downloading:'Model indiriliyor',not_ready:'Model hazırlanıyor',error:'Model erişimi sorunlu'};
+  $('modelReadiness').textContent='Otomatik tanıma: '+(labels[info.state]||info.state)+' · 21 sınıf · ONNX CPU · tahminler doğrulanmalıdır.';
+ }catch(e){$('modelReadiness').textContent='Otomatik tanıma servisi kontrol edilemedi; elle inceleme kullanılabilir.';}
+}
+checkModelStatus();
+setInterval(checkModelStatus,20000);
 draw();
 </script>
 </body>
