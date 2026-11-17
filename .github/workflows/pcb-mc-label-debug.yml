@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/pcb-mc-label-debug.yml"
+      - "pcb_mc_remote_label_debug.py"
 jobs:
   label-audit:
     runs-on: ubuntu-latest
