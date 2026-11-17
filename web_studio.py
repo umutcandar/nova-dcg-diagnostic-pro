@@ -173,6 +173,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/web_review.js":
             content = (ROOT / "web_review.js").read_text(encoding="utf-8")
             return self.send_payload(200, content, "application/javascript", head=head)
+        if path == "/web_component_knowledge.js":
+            content = (ROOT / "web_component_knowledge.js").read_text(encoding="utf-8")
+            return self.send_payload(200, content, "application/javascript", head=head)
         if path == "/":
             content = (ROOT / "web_studio.html").read_text(encoding="utf-8")
             return self.send_payload(200, content, "text/html", head=head)
