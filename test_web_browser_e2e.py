@@ -21,6 +21,7 @@ from http.client import HTTPConnection
 from io import BytesIO
 from pathlib import Path
 from threading import Thread
+from unittest.mock import patch
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
@@ -166,6 +167,46 @@ class BrowserAndRealInferenceTest(unittest.TestCase):
         self.assertTrue(self.page.locator("#confirmed").is_checked())
         self.assertFalse(self.errors, "JavaScript errors: "+repr(self.errors))
         self.page.unroute("**/analyze")
+
+    def test_real_detailed_4k_onnx_analysis_on_public_board(self):
+        """Exercise production tiled mode, not merely browser/stubbed suggestions."""
+        source=os.environ.get("NOVA_PUBLIC_PCB_TEST_IMAGE")
+        if not source or not Path(source).is_file():
+            self.skipTest("Public validated PCB photo not provided")
+        with Image.open(source) as opened:
+            photo=opened.convert("RGB")
+            expected=photo.size
+            binary=BytesIO()
+            photo.save(binary,format="JPEG",quality=86)
+        image="data:image/jpeg;base64,"+base64.b64encode(binary.getvalue()).decode()
+        auth=base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+        conn=HTTPConnection(self.host,self.port,timeout=TIMEOUT)
+        started=time.monotonic()
+        try:
+            with patch.dict(os.environ,{"NOVA_DETAILED_SCAN":"1"}):
+                conn.request("POST","/analyze",body=json.dumps({"image":image}).encode(),
+                    headers={"Content-Type":"application/json","Authorization":"Basic "+auth})
+                response=conn.getresponse()
+                status=response.status
+                result=response.read()
+        finally:
+            conn.close()
+        self.assertEqual(status,200,result.decode(errors="replace")[:400])
+        body=json.loads(result)
+        self.assertEqual(body["inference_mode"],"tiled_detail")
+        self.assertEqual((body["image_width"],body["image_height"]),expected)
+        self.assertEqual(body["model_class_count"],21)
+        self.assertGreater(len(body["detections"]),0)
+        for item in body["detections"]:
+            x1,y1,x2,y2=item["bbox_xyxy_pixels"]
+            self.assertTrue(0<=x1<x2<=expected[0])
+            self.assertTrue(0<=y1<y2<=expected[1])
+            self.assertIn("review_required",item)
+        elapsed=time.monotonic()-started
+        self.assertLess(elapsed,180,"Detailed scan exceeded browser 180s timeout")
+        print("REAL DETAILED PHOTO",Path(source).name,"resolution",expected,
+              "detections",len(body["detections"]),
+              "elapsed_seconds",round(elapsed,2),flush=True)
 
     def test_real_onnx_prediction_on_public_annotated_photo(self):
         source = os.environ.get("NOVA_PUBLIC_PCB_TEST_IMAGE")
