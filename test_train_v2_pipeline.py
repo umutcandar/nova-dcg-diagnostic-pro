@@ -19,7 +19,7 @@ class TrainingAuditTests(unittest.TestCase):
         folder = self.base / f"board{num}"
         folder.mkdir(parents=True, exist_ok=True)
         image = folder / "board.png"
-        Image.new("RGB", (64, 64), (30,100,90)).save(image)
+        Image.new("RGB", (64, 64), (30+num,100,90)).save(image)
         annotation = {
             "image": "board.png",
             "board_id": board_id or f"device-{num}",
@@ -37,6 +37,7 @@ class TrainingAuditTests(unittest.TestCase):
         self.assertEqual(report["board_count"], 3)
         self.assertEqual(report["labels"]["LED"], 1)
         self.assertTrue(report["warnings"])
+        self.assertEqual(report["duplicate_photo_sha256_check"], "passed")
 
     def test_unverified_labels_must_not_train(self):
         for i in range(3):
@@ -48,6 +49,31 @@ class TrainingAuditTests(unittest.TestCase):
         for i in range(3):
             self.make_board(i, board_id="same-physical-board")
         with self.assertRaisesRegex(ValueError, "3 farklı"):
+            audit_annotations(self.base)
+
+    def test_reject_same_photo_content_under_different_board_ids(self):
+        for i in range(3):
+            self.make_board(i)
+        source = (self.base/"board0"/"board.png")
+        target = (self.base/"board2"/"board.png")
+        target.write_bytes(source.read_bytes())
+        with self.assertRaisesRegex(ValueError, "train/test sızıntısı"):
+            audit_annotations(self.base)
+
+    def test_reject_duplicate_photo_even_with_same_board_id(self):
+        for i in range(3):
+            self.make_board(i)
+        self.make_board(3, board_id="device-0")
+        (self.base/"board3"/"board.png").write_bytes(
+            (self.base/"board0"/"board.png").read_bytes()
+        )
+        with self.assertRaisesRegex(ValueError, "iki kez"):
+            audit_annotations(self.base)
+
+    def test_reject_unresolved_unknown_component_before_training(self):
+        for i in range(3):
+            self.make_board(i,label="Bilinmiyor" if i==2 else "Direnç")
+        with self.assertRaisesRegex(ValueError, "Bilinmiyor"):
             audit_annotations(self.base)
 
     def test_training_refuses_missing_weights(self):
