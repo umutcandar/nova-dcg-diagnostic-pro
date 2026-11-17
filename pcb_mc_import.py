@@ -16,6 +16,7 @@ import os
 import shutil
 from collections import Counter
 from pathlib import Path
+from PIL import Image
 
 SOURCE_DOI = "10.4121/7c6e5bda-eecf-4feb-8a3a-7f823b1b0140.v2"
 SOURCE_LICENSE = "CC BY 4.0"
