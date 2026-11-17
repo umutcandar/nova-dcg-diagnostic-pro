@@ -101,7 +101,21 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <div id="selectionFields" hidden>
 <div class="field"><label for="partType">Komponent tipi (teknisyen doğrulamalı)</label><select id="partType"></select></div>
 <label class="toggle"><input id="confirmed" type="checkbox"> Fotoğraftaki parçanın türünü kontrol ettim</label>
+
 <div id="guide" class="guide"></div>
+<div id="knowledgeBox" class="guide" style="border-left-color:#dfbc75">
+  <strong>Beklenen değer ve kanıt düzeyi</strong>
+  <div id="knowledgeText" class="note"></div>
+  <div id="knowledgeSource" class="note"></div>
+</div>
+<div class="field"><label for="marking">Parça üzerindeki kod (okunabiliyorsa)</label>
+<input id="marking" placeholder="Örn. 103, 4R7, 100uF 25V" maxlength="90">
+<p class="note">Kod fotoğrafta otomatik okunmuş sayılmaz. Girilen koddan hesaplanan değer **nominal işarettir**, sağlamlık kanıtı değil.</p></div>
+<div class="field"><label for="bandCount">Direnç renk bantları (isteğe bağlı)</label>
+<select id="bandCount"><option value="0">Bant seçme</option><option value="4">4 renk bandı</option><option value="5">5 renk bandı</option></select></div>
+<div id="bandEditors" class="cols" hidden></div>
+<div id="decodedValue" class="guide" style="border-left-color:#dfbc75" hidden></div>
+
 <div class="field"><label for="value">Fluke ölçüm değeri (sayısal)</label><input id="value" inputmode="decimal" type="text" placeholder="Örn. 4,72"></div>
 <div class="field"><label for="mode">Ölçüm modu</label><select id="mode"><option value="resistance">Direnç (Ω)</option><option value="diode">Diyot (V)</option><option value="capacitance">Kapasitans (µF)</option><option value="continuity">Süreklilik (Ω)</option></select></div>
 <div class="field"><label for="circuit">Ölçüm koşulu</label><select id="circuit"><option value="in_circuit">Devre üzerinde</option><option value="out_of_circuit">Devreden ayrılmış</option></select></div>
@@ -136,10 +150,11 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 </main>
 <footer><b>Önemli:</b> Görüntüden pin numarası, nominal değer veya parçanın sağlamlığı güvenilir biçimde çıkarılamaz. Model tespiti, ölçüm rehberi ve tek ölçüm arıza kararı değildir. Kullanıcı doğrulaması gerekir.</footer>
 <script src="/web_review.js"></script>
+<script src="/web_component_knowledge.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), vp=$('viewport'),photo=$('photo'),canvas=$('overlay'),ctx=canvas.getContext('2d');
-const LABELS=['Bilinmiyor','Direnç','Kondansatör','Diyot','Entegre','Transistör','Bobin','MOSFET','Konnektör','LED','Anahtar','Header','Kristal','Test noktası'];
+const LABELS=['Bilinmiyor',...NovaKnowledge.LABELS.filter(x=>x!=='Bilinmiyor')];
 const GUIDES={
 'Direnç':['Direnç (Ω)','Her iki uç arasında ölç. Polarite önemli değil.','Nominal değer ve tolerans olmadan beklenen sayı belirlenemez. Paralel yollar devre içi sonucu değiştirebilir.','resistance'],
 'Kondansatör':['Kapasitans (µF)','Enerjiyi kesip kondansatörü güvenli deşarj et. Doğru terminal çiftinde ölç.','Kapasite ve tolerans kodundan/datasheetten doğrulanmalı. Devre içi ölçüm yanıltabilir.','capacitance'],
@@ -182,7 +197,48 @@ function clearMeasurementDraft(){
  ['value','notes','partNumber','min','max','source','conditions'].forEach(id=>$(id).value='');
  $('refMode').value='';$('refCircuit').value='';$('referenceVerified').checked=false;
 }
-function changeSelected(n){if(n!==selected)clearMeasurementDraft();selected=n;draw();showRegions();showGuide();}
+function renderKnowledge(){
+ const r=current();if(!r)return;
+ const label=$('partType').value;
+ const marking=$('marking').value.trim();
+ const colors=Array.from($('bandEditors').querySelectorAll('select')).map(el=>el.value);
+ const k=NovaKnowledge.knowledge(label,marking,colors.length?colors:null);
+ const box=$('knowledgeText'),source=$('knowledgeSource');
+ box.textContent=k.explanation;
+ if(k.typical_range){
+    const line=document.createElement('p');line.style.marginTop='9px';
+    line.textContent='Tipik örnek: '+k.typical_range[0].toLocaleString('tr-TR')+'–'+k.typical_range[1].toLocaleString('tr-TR')+' '+k.typical_unit+' (tüm diyotlar için geçerli değil).';
+    box.append(line);
+ }
+ source.replaceChildren();
+ if(k.source){const link=document.createElement('a');link.href=k.source;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Kaynak: Fluke diyot ölçüm rehberi';source.append(link);}
+ const decoded=$('decodedValue');decoded.hidden=!k.marking;decoded.replaceChildren();
+ if(k.marking){
+   const title=document.createElement('b');title.textContent=k.marking.label+': ';decoded.append(title,document.createTextNode(k.marking.display));
+   const note=document.createElement('p');note.className='note warning';note.style.marginTop='8px';note.textContent=k.marking.caution;
+   decoded.append(note);
+ }
+ const bandsVisible=label==='Direnç'||label==='Trimpot';
+ $('bandCount').disabled=!bandsVisible;$('marking').disabled=!(bandsVisible||label==='Kondansatör');
+}
+const BAND_COLORS=['','siyah','kahverengi','kirmizi','turuncu','sari','yesil','mavi','mor','gri','beyaz','altin','gumus'];
+function rebuildBands(){
+ const root=$('bandEditors');root.replaceChildren();const count=Number($('bandCount').value);
+ root.hidden=!count;
+ for(let i=0;i<count;i++){
+  const wrap=document.createElement('div');wrap.className='field';
+  const caption=document.createElement('label');caption.textContent=(i+1)+'. bant';wrap.append(caption);
+  const select=document.createElement('select');const blank=document.createElement('option');blank.value='';blank.textContent='Renk seç';select.append(blank);
+  BAND_COLORS.slice(1).filter(color=>(i>=count-2)||!['altin','gumus'].includes(color)).forEach(color=>{
+   const op=document.createElement('option');op.value=color;op.textContent=color;select.append(op);
+  });
+  select.onchange=renderKnowledge;wrap.append(select);root.append(wrap);
+ }
+ renderKnowledge();
+}
+$('bandCount').onchange=rebuildBands;
+$('marking').oninput=renderKnowledge;
+function changeSelected(n){if(n!==selected){clearMeasurementDraft();$('marking').value='';$('bandCount').value='0';}selected=n;draw();showRegions();showGuide();}
 function showRegions(){
 $('count').textContent=regions.length+' aday';
 $('removeRegion').disabled=selected<0;
@@ -196,9 +252,13 @@ const r=current();$('selectionFields').hidden=!r;$('noSelection').hidden=!!r;
 if(!r)return;
 $('partType').value=LABELS.includes(r.label)?r.label:'Bilinmiyor';
 $('confirmed').checked=!!r.confirmed;
-const g=GUIDES[$('partType').value]||GUIDES.Bilinmiyor;
-$('mode').value=g[3];$('guide').replaceChildren();
-[['Fluke modu',g[0]],['Prob yerleşimi',g[1]],['Beklenen değer',g[2]]].forEach(([label,value])=>{const div=document.createElement('div'),bold=document.createElement('b');bold.textContent=label+': ';div.append(bold,document.createTextNode(value));$('guide').append(div);});
+const g=NovaKnowledge.knowledge($('partType').value);
+$('mode').value=g.mode;$('guide').replaceChildren();
+[['Fluke modu',g.title],['Prob yerleşimi',g.probes],['Beklenen davranış',g.explanation]].forEach(([label,value])=>{
+ const div=document.createElement('div'),bold=document.createElement('b');
+ bold.textContent=label+': ';div.append(bold,document.createTextNode(value));$('guide').append(div);
+});
+$('bandCount').value='0';rebuildBands();
 $('assessment').textContent='';
 }
 function toggleManual(active){marking=active;$('manual').classList.toggle('active',active);vp.classList.toggle('marking',active);status(active?'Kartın üstünde sol tuşla sürükleyerek parça kutusu çiz.':'Elle işaretleme kapandı.');}
@@ -263,7 +323,7 @@ if((records.length||regions.some(r=>r.confirmed||r.source==='manual'))&&!confirm
 if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Yalnız JPG/PNG/WebP ve en fazla 12 MB dosya desteklenir.','warn');return;}
 const token=++requestId,reader=new FileReader();
 reader.onerror=()=>status('Fotoğraf okunamadı.','warn');
-reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;clearMeasurementDraft();$('boardId').value='';$('completedReview').checked=false;$('trainingStatus').textContent='';drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
+reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;clearMeasurementDraft();$('marking').value='';$('bandCount').value='0';rebuildBands();$('boardId').value='';$('completedReview').checked=false;$('trainingStatus').textContent='';drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
 reader.readAsDataURL(file);
 }
 function analysisImage(){
@@ -288,7 +348,28 @@ const found=Array.isArray(payload.detections)?payload.detections:[];
 regions=regions.filter(r=>r.source==='manual');$('completedReview').checked=false;
 const analyzedW=Number(payload.image_width)||imgW,analyzedH=Number(payload.image_height)||imgH;
 found.forEach(r=>{const raw=boxOf(r);if(!validBox(raw))return;const box=[raw[0]*imgW/analyzedW,raw[1]*imgH/analyzedH,raw[2]*imgW/analyzedW,raw[3]*imgH/analyzedH];if(!validBox(box))return;regions.push({id:++seq,label:String(r.label||'Bilinmiyor'),source:'model',confidence:typeof r.confidence==='number'?r.confidence:null,confirmed:false,bbox_xyxy_pixels:box,source_label:r.source_label||null});});
-selected=-1;showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday';
+// Model may suggest a type for a previously hand-drawn, unknown box. Never
+// override verified technician decisions and never mark predictions verified.
+function boxIoU(a,b){
+ const area=(v)=>(v[2]-v[0])*(v[3]-v[1]);
+ const overlap=Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0]))*
+               Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));
+ return overlap>0?overlap/(area(a)+area(b)-overlap):0;
+}
+for(const hand of regions.filter(r=>r.source==='manual'&&!r.confirmed&&r.label==='Bilinmiyor')){
+ const match=regions.filter(r=>r.source==='model'&&LABELS.includes(r.label)&&r.confidence>=.45)
+ .map(r=>({r,overlap:boxIoU(hand.bbox_xyxy_pixels,r.bbox_xyxy_pixels)}))
+ .sort((a,b)=>b.overlap-a.overlap)[0];
+ if(match&&match.overlap>=.35){
+   hand.label=match.r.label;
+   hand.source='manual_model_hint';
+   hand.confidence=match.r.confidence;
+ }
+}
+const candidates=regions.map((r,i)=>({r,i})).filter(x=>LABELS.includes(x.r.label)&&x.r.label!=='Bilinmiyor');
+candidates.sort((a,b)=>(b.r.confidence||0)-(a.r.confidence||0));
+selected=candidates.length?candidates[0].i:-1;
+showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday';
 status(found.length?found.length+' model adayı işaretlendi. Seçerek doğrula ve ölç.':'Model aday bulamadı. Elle işaretleme yapabilirsin.',found.length?'good':'warn');
 }catch(err){if(token!==requestId)return;$('modelState').textContent='Model taranamadı';status(err.name==='AbortError'?'Tarama zaman aşımına uğradı. Manuel işaretleme kullanılabilir.':'Model taranamadı: '+err.message+'. Elle işaretleme yapabilirsin.','warn');}
 finally{clearTimeout(timeout);if(token===requestId)$('reanalyze').disabled=false;}
@@ -302,7 +383,7 @@ records.slice().reverse().forEach(x=>{const p=document.createElement('div');p.cl
 $('saveReading').onclick=()=>{
 const r=current();if(!r)return;const reading=decimal($('value').value);if(reading===null){$('assessment').textContent='Geçerli, negatif olmayan sayısal bir ölçüm gir.';return;}
 if(!$('confirmed').checked||$('partType').value==='Bilinmiyor'){$('assessment').textContent='Önce komponent türünü doğrula. Ölçüm değerlendirmesi yapılamadı.';return;}
-const modes={resistance:'Ω',diode:'V',capacitance:'µF',continuity:'Ω'};
+const modes=NovaReview.MODE_UNITS;
 const mode=$('mode').value,unit=modes[mode],state=$('circuit').value,low=decimal($('min').value),high=decimal($('max').value);
 const withReference=Boolean($('min').value.trim()||$('max').value.trim()||$('referenceVerified').checked||$('source').value.trim()||$('conditions').value.trim()||$('partNumber').value.trim()||$('refMode').value||$('refCircuit').value);
 let result='Ölçüm kaydedildi — doğrulanmış referans olmadan arıza/sağlamlık kararı verilemez';
