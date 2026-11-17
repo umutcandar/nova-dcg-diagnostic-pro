@@ -1,5 +1,50 @@
 # NOVA DCG — PCB eğitim ve bağımsız test kayıtları
 
+## 17 Kasım 2026 — PCB-MC gerçek arşiv, ZIP64 ve poligon veri kalitesi
+
+Resmî 4TU PCB-MC-C veri arşivi doğrulandı: `PCB_MC.zip`,
+3.772.070.324 bayt, yayımcının MD5 değeri
+`1533d1ca6d54c37b19c1a94297c0745c`. Bağımsız küçük aralık
+okumalarıyla 30.944 ZIP64 kaydı sayıldı; `images/PCB-MC-C/kfold_data/fold_N/{train,valid}/`
+altında 5 katlamada toplam 3.075 JPG fotoğraf kaydı bulundu.
+COCO anotasyonları her katlamanın train/valid bölümünde ayrı:
+`components_only_foldN_train_annotations.json` ve
+`components_only_foldN_valid_annotations.json`.
+
+- Resmî arşiv indeks doğrulaması:
+  https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44140550708
+- İlk tam 3,77 GB indirme ve 23 sınıf eğitim denemesi:
+  https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44141714858
+- İlk deneme MD5 doğrulama sonrasında bir karışık YOLO etiketi yüzünden
+  eğitim öncesinde güvenle durduruldu.
+- Sorunlu gerçek dosya salt-okunur HTTP Range yöntemiyle ayrı incelendi.
+  `pcb163rec1_jpg.rf.e09413b54fb81bd55aa9f7db2f5001b9.txt` 11.
+  satırı **bir Capacitor sınıfı + 4 kapalı çokgen noktası** içeriyor,
+  beş sütunlu dikdörtgen kutu değil. Kaynakta 21 kapasitör etiketi vardı.
+- Yeni `_strict_yolo_label` yalnız doğrulanmış YOLO çokgenlerini
+  `min/max(x,y)` kullanarak kapsayıcı dikdörtgen kutuya çevirir ve
+  `import_audit.json` içine her dönüştürmeyi kaydeder. Belirsiz,
+  sınır dışı veya dejenere çokgenler reddedilir. Kaynak ZIP değiştirilmez.
+- Tek gerçek sorunlu etiket uzaktan tekrar okunup yeni dönüştürücüyle
+  doğrulandı: satır 11 = `1 0.819320886 0.518027597 0.024495855 0.083881930`.
+  Eğitim için bu aşamada bütün kaynak veri arşivini yeniden indirmeye
+  gerek duyulmadı.
+- Bu çözümün **tüm katlamadaki** karışık biçimleri temizlediği henüz
+  kanıtlanmış sayılmaz; 23 sınıflı modelin gerçek eğitim sonucunu
+  ayrı denemede doğrulamak gerekir.
+- Kaynak tek satır doğrulaması:
+  https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44143393469
+- Yeni eğitim denemesi:
+  https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44143570427
+
+Güncel web etiketleri 28 teknisyen inceleme sınıfı içerir. Bunlar arasında
+**Elektrolitik Kondansatör, Zener Diyot, Ferrit Boncuk ve Jumper** vardır.
+Canlı ONNX tahmin modeli ise halen **21 otomatik sınıfta** çalışır;
+yeni etiketlerin kendiliğinden öğrenildiği iddia edilemez.
+
+---
+
+
 ## 17 Kasım 2026 — 36 epoch ve üç modelin aynı veri üzerindeki karşılaştırması
 
 36 epoch, 640px YOLOv8n `candidate10.onnx` gerçekten eğitildi;
