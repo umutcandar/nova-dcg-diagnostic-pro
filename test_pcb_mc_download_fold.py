@@ -30,7 +30,7 @@ class OfficialPCBMCFoldTests(unittest.TestCase):
         manifest={"folds":[{"fold":0}]}
         for split in ("train","valid"):
             names[split]=[f"{split}_{n:03d}.jpg" for n in range(counts)]
-            manifest["folds"][0]["train_images" if split=="train" else "valid_images"]=names[split]
+            manifest["folds"][0]["train_images" if split=="train" else "valid_images"]=list(names[split])
         if bad_manifest:
             manifest["folds"][0]["valid_images"].append("phantom.jpg")
         classes=[{"id":i,"name":name} for i,name in enumerate(PRESENT_NAMES)]
