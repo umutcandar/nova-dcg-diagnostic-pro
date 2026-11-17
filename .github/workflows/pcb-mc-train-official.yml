@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - ".github/workflows/pcb-mc-train-official.yml"
+      - "pcb_mc_download_fold.py"
+      - "test_pcb_mc_download_fold.py"
 jobs:
   train:
     runs-on: ubuntu-latest
