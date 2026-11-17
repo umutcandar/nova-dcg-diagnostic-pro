@@ -134,20 +134,60 @@ def select_official_fold(manifest_path,fold_number,labels):
     return {"train":safe_train,"val":safe_valid}
 
 
-def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True):
+def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True,
+                  coco_train=None,coco_val=None):
+    """Create faithful 23-class YOLO labels from either published COCO layout.
+
+    Some 4TU docs describe per-fold train/valid COCO files while the
+    companion materializer expects one task-wide file. Accept either
+    explicitly, and compare file membership to publisher fold manifests.
+    Never silently join folds or regenerate random train/val splits.
+    """
     images=Path(images_dir).resolve()
     out=Path(out_dir).resolve()
     if not images.is_dir():
         raise FileNotFoundError(images)
     if out==images or images in out.parents:
         raise ValueError("Output must not be inside source photo folder")
-    labels,photos=load_coco(coco_file)
+    if (coco_train is None)!=(coco_val is None):
+        raise ValueError("Specify BOTH train and val COCO files")
+    using_split=coco_train is not None
+    if using_split and coco_file is not None:
+        raise ValueError("Use task-wide COCO OR both per-fold COCO files, not both")
+    if not using_split and coco_file is None:
+        raise ValueError("A task-wide COCO or both per-fold COCO files are required")
+    if using_split:
+        train_labels,train_photos=load_coco(coco_train)
+        val_labels,val_photos=load_coco(coco_val)
+        if set(train_labels)&set(val_labels):
+            raise ValueError("Same photo appears in official train and validation COCO")
+        labels={**train_labels,**val_labels}
+        photos={**train_photos}
+        # Only filename membership is used here because image IDs in two
+        # independently exported COCO files may overlap.
+        photo_by_name={p["filename"]:p for p in train_photos.values()}
+        photo_by_name.update({p["filename"]:p for p in val_photos.values()})
+    else:
+        labels,photos=load_coco(coco_file)
+        photo_by_name={p["filename"]:p for p in photos.values()}
     selection=select_official_fold(fold_manifest,fold,labels)
+    if using_split:
+        if set(selection["train"])!=set(train_labels):
+            raise ValueError("Train COCO photos do not exactly match publisher official fold")
+        if set(selection["val"])!=set(val_labels):
+            raise ValueError("Val COCO photos do not exactly match publisher official fold")
     if not selection["train"] or not selection["val"]:
         raise ValueError("Both train and val required")
+    # Prevent accidental collisions where distinct filenames share one
+    # output YOLO label stem, e.g. board.jpg and board.png.
+    for split,filenames in selection.items():
+        stems=[Path(name).stem for name in filenames]
+        if len(set(stems))!=len(stems):
+            raise ValueError(f"Duplicate YOLO label stems in {split} split")
     counts={"train":Counter(),"val":Counter()}
     for subset,filenames in selection.items():
-        imgdir=out/"images"/subset; labdir=out/"labels"/subset
+        imgdir=out/"images"/subset
+        labdir=out/"labels"/subset
         imgdir.mkdir(parents=True,exist_ok=True)
         labdir.mkdir(parents=True,exist_ok=True)
         for name in filenames:
@@ -156,11 +196,9 @@ def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True)
                 raise FileNotFoundError(f"Official photo absent: {name}")
             with Image.open(source) as img:
                 w,h=img.size
-            for photo in photos.values():
-                if photo["filename"]==name:
-                    if (w,h)!=(photo["width"],photo["height"]):
-                        raise ValueError(f"COCO/photo dimensions mismatch: {name}")
-                    break
+            declared=photo_by_name[name]
+            if (w,h)!=(declared["width"],declared["height"]):
+                raise ValueError(f"COCO/photo dimensions mismatch: {name}")
             target=imgdir/name
             if not target.exists():
                 if link:
@@ -173,7 +211,7 @@ def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True)
             (labdir/(Path(name).stem+".txt")).write_text(
                 "\n".join(lines)+("\n" if lines else ""),encoding="utf-8")
             counts[subset].update(PRESENT_NAMES[cls] for cls,_ in data)
-    # A deterministic, explicitly source-scoped class mapping.
+    # Stable class ID order across folds, regardless of source COCO IDs.
     config=("path: "+str(out)+"\ntrain: images/train\nval: images/val\n"
             "names:\n"+"\n".join("  "+str(i)+": "+json.dumps(name,ensure_ascii=False)
                                  for i,name in enumerate(PRESENT_NAMES))+"\n")
@@ -183,6 +221,7 @@ def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True)
         "doi": SOURCE_DOI,
         "license": SOURCE_LICENSE,
         "source_zip_md5": SOURCE_ZIP_MD5,
+        "source_coco_layout": "per_fold_train_valid" if using_split else "task_wide",
         "official_fold": fold,
         "class_count": len(PRESENT_NAMES),
         "class_order": list(PRESENT_NAMES),
@@ -192,7 +231,7 @@ def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True)
         "labels_per_split": {name:dict(counts[name]) for name in ("train","val")},
         "board_identity_split_from_official_manifest": True,
         "training_completed": False,
-        "warning": "Original ZIP checksum and annotation package must be verified before trusting fold provenance. Publication metadata not independently audited.",
+        "warning": "Verify original ZIP checksum; per-fold train/valid COCO membership is checked, but genuine official provenance must be established.",
     }
     (out/"import_audit.json").write_text(
         json.dumps(audit,ensure_ascii=False,indent=2),encoding="utf-8")
@@ -202,7 +241,9 @@ def import_pcb_mc(images_dir,coco_file,fold_manifest,out_dir,*,fold=0,link=True)
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--images-dir",required=True)
-    parser.add_argument("--coco-file",required=True)
+    parser.add_argument("--coco-file",help="Task-wide COCO file if published as a single JSON")
+    parser.add_argument("--coco-train",help="Official task/fold TRAIN COCO (requires --coco-val)")
+    parser.add_argument("--coco-val",help="Official task/fold VALID COCO (requires --coco-train)")
     parser.add_argument("--fold-manifest",required=True)
     parser.add_argument("--output",required=True)
     parser.add_argument("--fold",type=int,default=0)
@@ -210,7 +251,8 @@ def main():
     args=parser.parse_args()
     print(json.dumps(import_pcb_mc(
         args.images_dir,args.coco_file,args.fold_manifest,args.output,
-        fold=args.fold,link=not args.copy
+        fold=args.fold,link=not args.copy,
+        coco_train=args.coco_train,coco_val=args.coco_val
     ),ensure_ascii=False,indent=2))
 
 
