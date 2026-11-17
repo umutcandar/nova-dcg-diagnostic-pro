@@ -4,7 +4,7 @@
 
 1. Capture sharp top-down photos of **unpowered, discharged** boards, in varied lighting.
 2. Obtain permission to use the images. Remove customer labels, serials, personal data and confidential design markings.
-3. For each photo, manually label all visible components using **Komponent etiketle**.
+3. For each photo, manually label **all** visible components using **Komponent etiketle**. Check both technician verification and the exhaustive-label checkbox (`annotation_complete: true`). V2 training audit now rejects incomplete images; otherwise unmarked real parts could be learned as background.
 4. Add a stable `board_id` to the annotation JSON. Different photos of the same physical PCB **must use the same board_id**.
 5. Review boxes and component types manually. The app's `verified: false` field means no second-person verification occurred.
 6. Place annotation JSON files and their referenced images in an input directory. Run:
