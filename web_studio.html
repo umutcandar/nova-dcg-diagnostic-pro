@@ -47,6 +47,10 @@ button.small{padding:7px 10px}
 #status{padding:11px 17px;background:#102438;border-top:1px solid #2b4158;color:#a9ccdd;font-size:12px;min-height:39px}
 #status.warn{color:#f5c783}
 #status.good{color:#79dfc6}
+.item.verify{border-color:#357d72}
+.reviewHint{border-left-color:#f1c477!important;background:#2f2b21!important}
+.quickFix{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.quickFix button{background:#274a4d;border-color:#5fada5;color:#caf7ed}
 .side{display:flex;flex-direction:column;gap:15px;min-width:0}
 .block{padding:15px 16px}
 .block+.block{border-top:1px solid #2c4157}
@@ -94,14 +98,19 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <div id="modelReadiness" class="note" style="padding:9px 17px;border-top:1px solid #2a4155">21 sınıflı ONNX model durumu kontrol ediliyor…</div>
 </section>
 <aside class="side">
-<section class="panel"><div class="block"><div class="headline"><h2>Komponentler</h2><span id="count" class="counter">0 aday</span></div><p class="note">Sarı kutular model tahminidir. Yeşil işaretler seçilen parçayı gösterir. Model doğruluğu garanti değildir.</p><div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div>
-<div class="actions"><button id="removeRegion" disabled>× Yanlış adayı kaldır</button></div>
+<section class="panel"><div class="block"><div class="headline"><h2>Komponentler</h2><span id="count" class="counter">0 aday</span></div><p class="note">Sarı kutular model önerisidir. Yeşiller teknisyen doğrulamasıdır. Şüpheli modeller alternatif etiketlerle gösterilir.</p>
+<div id="correctionSummary" class="note" style="margin-top:8px"></div>
+<div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div>
+<div class="actions"><button id="removeRegion" disabled>× Yanlış adayı kaldır</button>
+<button id="forgetCorrections" disabled>Bu fotoğrafın düzeltmelerini sıfırla</button></div>
+<p class="note" style="margin-top:8px">Düzeltmeler yalnızca aynı fotoğraf için bu tarayıcıda saklanır. Model ağırlıkları kendiliğinden eğitilmez.</p>
 </div></section>
 <section class="panel"><div class="block"><div class="headline"><h2>Fluke ölçüm rehberi</h2><span class="counter">Enerjisiz</span></div>
 <p class="note warning">Önce kartın enerjisini kes. Artık gerilimi kontrol et; kondansatörleri güvenli biçimde boşalt. Şebeke/yüksek gerilimli kartlarda bu rehberi kullanma.</p>
 <div id="selectionFields" hidden>
 <div class="field"><label for="partType">Komponent tipi (teknisyen doğrulamalı)</label><select id="partType"></select></div>
-<label class="toggle"><input id="confirmed" type="checkbox"> Fotoğraftaki parçanın türünü kontrol ettim</label>
+<label class="toggle"><input id="confirmed" type="checkbox"> Parçayı doğruladım; bu fotoğrafa kaydet</label>
+<div id="modelAlternatives" class="guide" style="border-left-color:#f1c477" hidden></div>
 
 <div id="guide" class="guide"></div>
 <div id="knowledgeBox" class="guide" style="border-left-color:#dfbc75">
@@ -152,6 +161,7 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <footer><b>Önemli:</b> ONNX modelinin 21 sınıflı kutuları tahmindir; gerçek pin numarası, parça değeri veya sağlamlık bu kutulardan tek başına belirlenmez. Okunup doğrulanmış renk/işaret kodlarından nominal değer hesaplanabilir; kesin servis aralığı için parça kodu ve ölçüm koşullarına uygun kaynak gerekir. Enerjisi kesilmemiş/yüksek gerilimli kartlarda bu rehberi uygulama.</footer>
 <script src="/web_review.js"></script>
 <script src="/web_component_knowledge.js"></script>
+<script src="/web_corrections.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), vp=$('viewport'),photo=$('photo'),canvas=$('overlay'),ctx=canvas.getContext('2d');
@@ -173,6 +183,7 @@ const GUIDES={
 'Bilinmiyor':['Tip doğrulaması gerekli','Parça türünü ve ilgili uçlarını doğrula.','Türü belirsiz parçaya kesin ölçüm talimatı uygulanamaz.','resistance']
 };
 let regions=[],records=[],selected=-1,zoom=1,ox=0,oy=0,imgW=0,imgH=0,photoName='',dataUrl='',marking=false,pointer=null,drawStart=null,drawEnd=null,seq=0,requestId=0;
+let photoDigest='',photoCorrections=[];
 function status(msg,kind=''){$('status').textContent=msg;$('status').className=kind;}
 function validBox(b){return Array.isArray(b)&&b.length===4&&b.every(n=>Number.isFinite(Number(n)))&&Number(b[0])<Number(b[2])&&Number(b[1])<Number(b[3]);}
 function boxOf(r){return r.bbox_xyxy_pixels||r.bbox||r.box||r.xyxy;}
@@ -186,7 +197,7 @@ ctx.lineWidth=2;ctx.font='600 12px system-ui';
 regions.forEach((r,i)=>{
 const b=boxOf(r);if(!validBox(b))return;
 const x=ox+b[0]*zoom,y=oy+b[1]*zoom,w=(b[2]-b[0])*zoom,h=(b[3]-b[1])*zoom;
-ctx.strokeStyle=i===selected?'#79edce':r.source==='manual'?'#6cbbe2':'#f4bb66';ctx.fillStyle=ctx.strokeStyle;
+ctx.strokeStyle=r.confirmed&&r.human_verified?'#79edce':i===selected?'#83e4d5':r.source==='manual'?'#6cbbe2':'#f4bb66';ctx.fillStyle=ctx.strokeStyle;
 ctx.strokeRect(x,y,w,h);ctx.fillRect(x-1,y-20,26,19);ctx.fillStyle='#0b1928';ctx.fillText(String(i+1),x+5,y-6);
 });
 if(drawStart&&drawEnd){let x=Math.min(drawStart[0],drawEnd[0]),y=Math.min(drawStart[1],drawEnd[1]);ctx.strokeStyle='#8de6d9';ctx.setLineDash([5,4]);ctx.strokeRect(x,y,Math.abs(drawEnd[0]-drawStart[0]),Math.abs(drawEnd[1]-drawStart[1]));ctx.setLineDash([]);}
