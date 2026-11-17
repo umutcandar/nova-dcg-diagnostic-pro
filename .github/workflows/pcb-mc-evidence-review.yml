@@ -1,0 +1,63 @@
+name: Audit 23-class PCB-MC training evidence (no model promotion)
+on:
+  push:
+    paths:
+      - "pcb_mc_decision_report.py"
+      - "test_pcb_mc_decision_report.py"
+      - ".github/workflows/pcb-mc-evidence-review.yml"
+  workflow_dispatch:
+jobs:
+  release-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install only metadata dependencies, never load a PyTorch checkpoint
+        run: pip install "Pillow>=10,<13"
+      - name: Verify strict 23-class evidence gate with unit tests
+        run: python -m unittest -v test_pcb_mc_decision_report
+      - name: Fetch exact verified 23-class fold0 research model and report
+        run: |
+          gh run download 44143570427 \
+            --repo umutcandar/nova-dcg-diagnostic-pro \
+            --name nova-pcb-mc-23class-experiment --dir /tmp/nova-research-23
+      - name: Check original model SHA256 and flag missing class support
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from pcb_mc_decision_report import review
+          folder=Path("/tmp/nova-research-23")
+          candidates=list(folder.rglob("training_report.json"))
+          weights=list(folder.rglob("best.pt"))
+          if len(candidates)!=1 or len(weights)!=1:
+              raise RuntimeError("Expected EXACTLY one report and one source checkpoint")
+          raw=json.loads(candidates[0].read_text(encoding="utf-8"))
+          report=review(raw,model_file=weights[0])
+          path=Path("artifacts/pcb_mc_23_research_hold.json")
+          path.parent.mkdir(parents=True,exist_ok=True)
+          path.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("### Actual PCB-MC 23-class trial — research only")
+          print("| Class | Train objects | Validation objects | mAP50–95 |")
+          print("|---|---:|---:|---:|")
+          for v in report["priority_capacitor_diode_evidence"]:
+              print("|",v["name"],"|",v["train_objects"],"|",v["validation_objects"],"|",round(100*v["map50_95"],2),"% |")
+          print("Candidate checkpoint SHA256 verified:",report["checkpoint_sha256_verified"])
+          print("Classes prioritized for data collection:",report["rare_class_count"])
+          print("Live replacement permitted:",report["can_replace_live_21class_detector"])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-23class-evidence-class-coverage-report
+          path: artifacts/pcb_mc_23_research_hold.json
+          retention-days: 30
+          if-no-files-found: warn
