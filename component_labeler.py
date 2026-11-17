@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from dataset import CLASSES
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageOps
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -18,7 +18,8 @@ def normalized_box(x1,y1,x2,y2,width,height):
     return [round(a/width,6),round(c/height,6),round(b/width,6),round(d/height,6)]
 
 def launch_labeler(parent, image_path):
-    source=Image.open(image_path).convert("RGB")
+    with Image.open(image_path) as opened:
+        source=ImageOps.exif_transpose(opened).convert("RGB")
     scale=min(1.0,900/source.width,620/source.height)
     view=source.resize((max(1,round(source.width*scale)),max(1,round(source.height*scale))))
     win=tk.Toplevel(parent)
@@ -61,7 +62,10 @@ def launch_labeler(parent, image_path):
     canvas.bind("<B1-Motion>",move)
     canvas.bind("<ButtonRelease-1>",up)
     confirmed=tk.BooleanVar(value=False)
+    exhaustive=tk.BooleanVar(value=False)
     ttk.Checkbutton(toolbar, text="Etiketleri tek tek kontrol ettim", variable=confirmed).pack(side="left",padx=8)
+
+    ttk.Checkbutton(win, text="Bağımsız test: Karttaki bütün görünür parçaları etiketledim", variable=exhaustive).pack(anchor="w", padx=14, pady=(0, 6))
 
     def save():
         if not regions:
@@ -79,6 +83,7 @@ def launch_labeler(parent, image_path):
               "image_width":source.width,"image_height":source.height,
               "coordinate_system":"xyxy_normalized","regions":regions,
               "technician_verified":confirmed.get(),
+              "annotation_complete":exhaustive.get() and confirmed.get(),
               "board_id":board_id.get().strip(),
               "note":"Labels were drawn manually; trainer requires explicit verified metadata."}
         Path(path).write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")

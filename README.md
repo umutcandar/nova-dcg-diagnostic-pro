@@ -28,6 +28,8 @@ düğme yüzeyleri olarak çizilir.
 - **Zoom:** Görüntü üzerindeyken fare tekerleği veya + / −. Yakınlaştırma imlecin bulunduğu noktayı korur.
 - **Pan:** Fotoğrafı basılı tutup sürükle. **Sığdır** tüm kartı yeniden gösterir.
 - **Parça seçimi:** Sol komponent listesi veya fotoğraftaki kutu. Sarı kutular **model tahminidir**, doğrulanmış parça kimliği değildir.
+- **Yanlış pozitif düzeltmesi:** Sol listeden aday seçip sağ panelde **Yanlış adayı reddet** seçin. Reddedilen kutu fotoğraf üstünden gizlenir ve Fluke ölçümü devre dışı kalır; kırmızı işaretli satır listede kalarak **Red kararını geri al** ile tek tıkla geri getirilebilir. Bu tercih aynı fotoğrafın yeni taramasında yerel otomatik kayıttan geri yüklenir. Teknisyen redleri gerçek model precision/recall sonucu veya doğrulanmış eğitim verisi sayılmaz.
+- **Kondansatör/diyot belirsizliği:** Yoğun çakışan iki sınıf tahmini tek **Kondansatör / Diyot (belirsiz)** kutusudur. Parçanın türünü teknisyen onaylayana kadar Fluke modu seçilmez.
 - **Fluke:** Sağ panel Ω, kapasitans, diyot, vb. modunu, güvenlik hazırlığını, prob talimatlarını ve sonraki kontrolü gösterir.
 - **Doğrulanmış referans:** Nominal, tolerans, birim ve teknisyen onayı olmadan sayısal değer üretilmez.
 - **Ölçüm geçmişi:** Manual Fluke okumaları komponent bazında tutulur. Yerel otomatik yedekler `~/.nova_dcg/autosave` altında; sunucuya yüklenmez.
@@ -35,9 +37,63 @@ düğme yüzeyleri olarak çizilir.
 
 **Sınırlar:** Gerçek model karttaki her parçayı bulamayabilir. Fotoğraftan güvenilir prob pinleri, nominal değerler veya kesin elektriksel arıza belirlenemez. Fluke okumaları manuel girilir.
 
+## Gerçek etiketli kartlarla algılama kalitesi testi (V2)
+
+**Durum:** Çakışan kondansatör/diyot tahminleri tek bir **belirsiz** aday olarak gösterilir; bileşen türü onaylanmadan Fluke modu önerilmez. Bu kuralın başarısı gerçek kartlarda henüz ölçülmedi. Modelin güven puanı doğruluk oranı değildir.
+
+Etiketleme ekranında her gerçek PCB için aynı `board_id` kullanılmalı. Bütün görünür bileşenler çizildikten sonra hem **etiketleri tek tek kontrol ettim** hem de **tüm görünür parçaları işaretledim** kutuları seçilmeli. Eksik etiketli fotoğraflardan yanlış pozitif oranı hesaplanamaz. Test kartları eğitimde veya eşik ayarında kullanılmamalıdır.
+
+Bağımsız fiziksel kart kimliklerini (satır başına bir kimlik) `heldout_boards.txt` içine yazın. Örnek klasör:
+
+```text
+pcb_annotations/
+  kart-a/
+    kart.png
+    etiket.json
+  kart-b/
+    kart.png
+    etiket.json
+heldout_boards.txt
+```
+
+Gerçek eğitilmiş model ve gerçek kart fotoğrafları mevcutsa:
+
+```bash
+python benchmark_detection.py --annotations pcb_annotations \
+  --holdout-boards heldout_boards.txt \
+  --weights models/yolov8s_pcb_best.pt \
+  --output pcb_holdout_report.json
+```
+
+Önceden kaydedilmiş gerçek tahminlerle *model çalıştırmadan* test etmek için, her `etiket.json` dosyasına karşılık tahmin klasöründe aynı alt dizinde `etiket.predictions.json` dosyası bulunmalı. İçerik `[{"label":"Diyot","confidence":0.81,"bbox_xyxy_pixels":[10,20,40,60]}]` gibi bir listedir:
+
+```bash
+python benchmark_detection.py --annotations pcb_annotations \
+  --holdout-boards heldout_boards.txt \
+  --predictions-dir saved_predictions \
+  --output pcb_holdout_report.json
+```
+
+Raporda `false_positive_candidates`, `missed_components`, `candidate_precision`, `candidate_recall`, `class_precision`, `class_recall`, `capacitor_as_diode`, `diode_as_capacitor` ve sınıf karmaşıklığı farklı güven eşiklerinde ayrı ayrı raporlanır. `candidate_precision`, gerçek etiketlerle konum eşleştirme başarısıdır; elektronik sağlamlık veya tüm kartlarda model doğruluğu değildir. İncelenecek yanlış kutuları tek PNG sayfasında görmek için gerçek benchmark raporundan:
+
+```bash
+python review_error_sheet.py --report pcb_holdout_report.json \
+  --threshold 0.45 --output pcb_error_review.png
+```
+
+Bu işlem yalnızca **yerel fotoğrafları** kırpar ve hata örneklerini gösterir; fotoğrafları internete yüklemez. Çıkan görseller eğitim için otomatik etiket değildir, insan doğrulaması gerekir.
+
+Ayrıca **`error_cases`** alanı hatalı adayların hangi kart ve görüntü kutusunda çıktığını verir; buradan gerçek kondansatör/diyot etiketlerini kontrol edip hedefli eğitim örnekleri hazırlanabilir. Yanlış pozitifleri azaltmak için **0.22 / 0.35 / 0.45 / 0.55 / 0.65** eşikleri karşılaştırılır; yüksek eşik bazı gerçek komponentleri de kaçırabilir. **Gerçek etiketli bağımsız testler olmadan eşik otomatik yükseltilmez.**
+
+```bash
+python -m unittest -v test_benchmark_detection test_multiscale_detection
+```
+
+---
+
 ## V2 eğitim altyapısı
 
-Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
+Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli; hem teknisyen onayı hem de tüm görünür parçaların etiketlendiğine dair **`annotation_complete: true`** onayı bulunmalı. Eksik etiketli fotoğraflar V2 eğitimi tarafından reddedilir.
 
 Veri denetimi (model eğitmez):
 

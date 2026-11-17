@@ -41,6 +41,8 @@ def measurement_plan(detections):
                       "bbox_xyxy_pixels":coords,"mode":suggested_mode,
                       "instruction":guidance+" Kart enerjisiz ve deşarj edilmiş olmalı.",
                       "confidence":detection.get("confidence"),
+                      "needs_review":bool(detection.get("needs_review", False)),
+                      "ambiguity_reason":detection.get("ambiguity_reason"),
                       "status":"ölçüm bekleniyor"})
     return tasks
 

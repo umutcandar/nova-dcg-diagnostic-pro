@@ -14,6 +14,7 @@ SAFE_FIELDS = (
     "measurement_history", "reading", "status", "technician_verified_type",
     "component", "source_label", "part_number", "part_number_verified_by_user",
     "probe_points", "pin_mapping", "reference_result", "reference_source",
+    "technician_rejected_candidate",
 )
 
 

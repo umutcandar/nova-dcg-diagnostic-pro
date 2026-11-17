@@ -10,8 +10,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install GUI/report dependencies
-        run: python -m pip install -r requirements.txt
+      - name: Install lightweight unit-test dependencies
+        run: python -m pip install "Pillow>=10,<13" "reportlab>=4,<5" "tkinterdnd2>=0.4.3,<1"
+      # Full torch/Ultralytics installation and trained checkpoint validation
+      # run separately in the PCB detector smoke workflow.
       - name: Check Python syntax
         run: python preflight.py
       - name: Run unit tests
