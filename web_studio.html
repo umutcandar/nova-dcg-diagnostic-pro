@@ -102,7 +102,8 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <div id="correctionSummary" class="note" style="margin-top:8px"></div>
 <div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div>
 <div class="actions"><button id="removeRegion" disabled>× Yanlış adayı kaldır</button>
-<button id="forgetCorrections" disabled>Bu fotoğrafın düzeltmelerini sıfırla</button></div>
+<button id="forgetCorrections" disabled>Bu fotoğrafın düzeltmelerini sıfırla</button>
+<button id="exportCorrections" disabled>↓ Düzeltme geri bildirimini indir</button></div>
 <p class="note" style="margin-top:8px">Düzeltmeler yalnızca aynı fotoğraf için bu tarayıcıda saklanır. Model ağırlıkları kendiliğinden eğitilmez.</p>
 </div></section>
 <section class="panel"><div class="block"><div class="headline"><h2>Fluke ölçüm rehberi</h2><span class="counter">Enerjisiz</span></div>
@@ -306,6 +307,7 @@ function showRegions(){
 $('count').textContent=regions.length+' aday';
 $('removeRegion').disabled=selected<0;
 $('forgetCorrections').disabled=!photoDigest||!photoCorrections.length;
+$('exportCorrections').disabled=!photoDigest||!photoCorrections.length;
 const savedCount=regions.filter(r=>r.human_verified&&r.confirmed).length;
 const suspicious=regions.filter(r=>!r.confirmed&&NovaCorrections.reviewHint(r,imgW,imgH)).length;
 $('correctionSummary').textContent=savedCount+' teknisyen onaylı · '+suspicious+' şüpheli model tahmini · '+photoCorrections.length+' fotoğrafa kayıtlı düzeltme';
@@ -377,6 +379,28 @@ $('confirmed').onchange=()=>{
  showRegions();renderAlternatives();draw();
 };
 $('manual').onclick=()=>toggleManual(!marking);
+$('exportCorrections').onclick=()=>{
+ if(!photoDigest||!photoCorrections.length)return;
+ const corrections=regions.filter(r=>r.confirmed&&r.human_verified).map(r=>({
+  verified_label:r.label,
+  model_label:r.original_model_label||null,
+  model_source_label:r.source_label||null,
+  model_score:r.confidence,
+  bbox_xyxy_normalized:NovaCorrections.normalized(r.bbox_xyxy_pixels,imgW,imgH),
+  alternatives:r.alternatives||[],
+  technician_verified:true,
+  source:"browser_confirmation"
+ })).filter(x=>x.bbox_xyxy_normalized);
+ const documentData={schema:"nova-dcg-disagreement-review-v1",created_at:new Date().toISOString(),
+  image_sha256:photoDigest,original_photo_name:photoName,image_width:imgW,image_height:imgH,
+  corrections,annotation_completeness:"partial_review_only",
+  note:"Bu dosya modeli tek başına eğitmez. Orijinal fotoğraf ve tüm komponentlerin gözden geçirilmiş etiketleri ayrıca gereklidir."};
+ const payload=new Blob([JSON.stringify(documentData,null,2)],{type:"application/json"}),
+ url=URL.createObjectURL(payload),link=document.createElement('a');
+ link.href=url;link.download='nova-dcg-duzeltmeler-'+new Date().toISOString().slice(0,10)+'.json';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),5000);
+ status('Düzeltme raporu indirildi. Bu dosya tek başına model eğitimi değildir.','good');
+};
 $('forgetCorrections').onclick=()=>{
  if(!photoDigest||!photoCorrections.length)return;
  if(!confirm('Bu fotoğraf için tarayıcıda kayıtlı doğrulamaları silmek istiyor musun? Model etiketleri geri gelir.'))return;
