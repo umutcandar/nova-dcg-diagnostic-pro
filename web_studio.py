@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import logging
+from urllib.parse import urlsplit
 
 from PIL import Image, ImageOps
 
@@ -103,17 +104,31 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def do_HEAD(self):
+        if self.require_auth():
+            return
+        if urlsplit(self.path).path == "/":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(PAGE.encode("utf-8"))))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
         if self.require_auth():
             return
-        if self.path == "/":
+        if urlsplit(self.path).path == "/":
             return self.send(200, PAGE, "text/html")
         self.send(404, {"error": "Not found"})
 
     def do_POST(self):
         if self.require_auth():
             return
-        if self.path != "/analyze":
+        if urlsplit(self.path).path != "/analyze":
             return self.send(404, {"error": "Not found"})
         try:
             size = int(self.headers.get("Content-Length", "0"))
