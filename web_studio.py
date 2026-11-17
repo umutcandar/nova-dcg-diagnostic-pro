@@ -44,6 +44,49 @@ class ClientInputError(Exception):
     """A request validation error suitable for a brief user-facing message."""
 
 
+
+def _box_iou(a, b):
+    """IoU for two already-validated pixel xyxy boxes."""
+    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
+    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
+    overlap = max(0.0, x2-x1) * max(0.0, y2-y1)
+    area_a = (a[2]-a[0])*(a[3]-a[1])
+    area_b = (b[2]-b[0])*(b[3]-b[1])
+    union = area_a+area_b-overlap
+    return overlap/union if union>0 else 0.0
+
+
+def flag_component_ambiguity(predictions):
+    """Mark visually contradictory diode/capacitor proposals for technician review.
+
+    This method never reclassifies detections or pretends raw YOLO scores are
+    calibrated probabilities. It only marks likely confusion for manual review.
+    """
+    sensitive = frozenset(("Diyot", "Kondansatör"))
+    for index, item in enumerate(predictions):
+        label = item["label"]
+        notes = []
+        main_score = item["confidence"]
+        if label in sensitive and main_score is not None:
+            competing = [
+                alt for alt in item.get("alternatives", [])
+                if alt["label"] in sensitive and alt["label"] != label
+                and main_score - alt["confidence"] <= .16
+            ]
+            if competing:
+                notes.append("Diyot ve kondansatör model skorları yakın; parçanın türünü doğrula.")
+        if label in sensitive:
+            for other_index, other in enumerate(predictions):
+                if index == other_index or other["label"] not in sensitive or other["label"] == label:
+                    continue
+                if _box_iou(item["bbox_xyxy_pixels"], other["bbox_xyxy_pixels"]) >= .55:
+                    notes.append("Aynı bölgede hem diyot hem kondansatör bulundu; çakışan adayları kontrol et.")
+                    break
+        item["review_required"] = bool(notes)
+        item["review_note"] = " ".join(dict.fromkeys(notes))[:220]
+    return predictions
+
+
 def normalize_detections(detections, width, height):
     """Emit JSON-compatible, pixel-based boxes matching the displayed image.
 
@@ -99,7 +142,7 @@ def normalize_detections(detections, width, height):
             "source": "model",
             "verified": False,
         })
-    return output
+    return flag_component_ambiguity(output)
 
 
 def decode_photo(body):
