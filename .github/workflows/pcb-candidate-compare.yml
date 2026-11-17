@@ -1,0 +1,88 @@
+name: Compare trained PCB candidate vs live detector (same photos)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pcb_candidate_compare.py'
+      - 'test_pcb_candidate_compare.py'
+      - '.github/workflows/pcb-candidate-compare.yml'
+jobs:
+  comparable-model-evaluation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install only CPU ONNX evaluator dependencies (no untrusted .pt loader)
+        run: python -m pip install "Pillow>=10,<13" "numpy>=1.26,<3" "onnxruntime>=1.19,<2"
+      - name: Test fair comparison and candidate fingerprint checks
+        run: python -m unittest -v test_pcb_candidate_compare test_pcb_external_benchmark test_web_onnx_detector
+      - name: Download the EXACT 36-epoch candidate from successful training run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 44115087646 --repo umutcandar/nova-dcg-diagnostic-pro \
+            --name nova-experimental-pcb10-candidate --dir /tmp/nova-candidate-raw
+          python - <<'PY'
+          from pathlib import Path
+          from shutil import copy2
+          source=Path("/tmp/nova-candidate-raw")
+          target=Path("/tmp/nova-candidate")
+          target.mkdir(parents=True,exist_ok=True)
+          for name in ("candidate10.onnx","training_report.json"):
+              matched=list(source.rglob(name))
+              if len(matched)!=1:
+                  raise RuntimeError("Expected exactly one candidate artifact file: "+name)
+              copy2(matched[0],target/name)
+          from pcb_candidate_compare import verify_candidate
+          verified,report=verify_candidate(target)
+          assert report["parameters"]["epochs"]==36
+          assert report["parameters"]["imgsz"]==640
+          print("Verified 36-epoch 10-class ONNX artifact:",verified.stat().st_size,"bytes")
+          PY
+      - name: Retrieve pinned public validation labels and images
+        run: |
+          git clone --quiet --filter=blob:none --sparse --depth 1 \
+            https://github.com/wangshnegqi/pcb-component-detection-dataset-yolo.git /tmp/nova-external
+          git -C /tmp/nova-external sparse-checkout set dataset/images/val dataset/labels/val
+          test "$(git -C /tmp/nova-external rev-parse HEAD)" = "0d7ae7310fa607389779b6132285336ad73e96e1"
+          grep -q 'Creative Commons Attribution 4.0' /tmp/nova-external/LICENSE-DATASET
+      - name: Evaluate candidate, live full-resolution and live single-pass with identical IoU protocol
+        run: |
+          python pcb_candidate_compare.py --dataset /tmp/nova-external \
+            --candidate /tmp/nova-candidate --out artifacts/comparable_model_results.json
+      - name: Publish machine-checkable review results, without promotion
+        if: always()
+        run: |
+          if test -f artifacts/comparable_model_results.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          obj=json.load(open("artifacts/comparable_model_results.json"))
+          print("### Side-by-side PCB detector comparison — NOT production certification")
+          print("| Model | Correct labels / GT | Localization | Capacitor | Diode |")
+          print("|---|---:|---:|---:|---:|")
+          for key,row in obj["summary"].items():
+              print("|",key,"|",str(row["correct_class"])+"/"+str(row["gt_objects"]),
+                    "|",row["localized_recall"],"|",row["capacitor_recall"],
+                    "|",row["diode_recall"],"|")
+          print("Approval to replace live model: **FALSE**.")
+          print("Candidate trained using source train split, selected on same 13-photo validation split.")
+          print("Board identity not verified. Different models have 21 vs 10 classes.")
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-side-by-side-model-benchmark
+          path: artifacts/comparable_model_results.json
+          if-no-files-found: warn
+          retention-days: 30
