@@ -52,7 +52,7 @@ class CompareCandidateTests(unittest.TestCase):
             output[0,4+1,i]=score
         result=decode_candidate(output,640,640,1,0,0)
         self.assertEqual(len(result),1)
-        self.assertEqual(result[0]["confidence"],.87)
+        self.assertAlmostEqual(result[0]["confidence"],.87,places=5)
 
     def test_bad_shape_and_nonfinite_scores_rejected(self):
         with self.assertRaisesRegex(ValueError,"output shape"):
