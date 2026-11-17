@@ -89,7 +89,7 @@ def deduplicate_detections(predictions, threshold=0.40, max_results=250):
     return sorted(merged, key=lambda p: (p["bbox_xyxy_pixels"][1], p["bbox_xyxy_pixels"][0]))
 
 
-def detect_components(image_path, weights_path, confidence=0.22):
+def detect_components(image_path, weights_path, confidence=0.22, postprocess=True):
     """Predict on the whole photo and four overlapping crops.
 
     Lower confidence increases recall at the expense of false positives.
@@ -155,7 +155,7 @@ def detect_components(image_path, weights_path, confidence=0.22):
                 "source": "model",
                 "verified": False,
             })
-    return deduplicate_detections(predictions)
+    return deduplicate_detections(predictions) if postprocess else predictions
 
 
 def validate_model_classes(names):
