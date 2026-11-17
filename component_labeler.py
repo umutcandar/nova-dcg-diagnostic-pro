@@ -65,7 +65,7 @@ def launch_labeler(parent, image_path):
     exhaustive=tk.BooleanVar(value=False)
     ttk.Checkbutton(toolbar, text="Etiketleri tek tek kontrol ettim", variable=confirmed).pack(side="left",padx=8)
 
-    ttk.Checkbutton(toolbar, text="Tüm görünür parçaları işaretledim (test)", variable=exhaustive).pack(side="left",padx=5)
+    ttk.Checkbutton(win, text="Bağımsız test: Karttaki bütün görünür parçaları etiketledim", variable=exhaustive).pack(anchor="w", padx=14, pady=(0, 6))
 
     def save():
         if not regions:
