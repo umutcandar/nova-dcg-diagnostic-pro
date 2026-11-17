@@ -208,6 +208,81 @@ def decode_predictions(output, width, height, scale, pad_x, pad_y, confidence=0.
     return sorted(results,key=lambda obj:(obj["bbox_xyxy_pixels"][1],obj["bbox_xyxy_pixels"][0]))
 
 
+def candidate_tiles(width, height):
+    """Up to nine overlapping high-detail crops, preserving small PCB parts."""
+    if width < 1 or height < 1 or max(width,height) <= 1024:
+        return []
+    size = min(1024, max(640, round(max(width,height)*0.58)))
+    tilew, tileh = min(size,width),min(size,height)
+    def starts(total,tile):
+        remaining=max(0,total-tile)
+        return sorted(set((0,remaining//2,remaining)))
+    result=[(x,y,min(width,x+tilew),min(height,y+tileh))
+            for y in starts(height,tileh) for x in starts(width,tilew)]
+    return [r for r in result if r!=(0,0,width,height)]
+
+
+def merge_overlapping_detections(predictions, threshold=.50):
+    """Suppress duplicates of the SAME class, preserving competing classes."""
+    sorted_items=sorted(predictions,key=lambda x:x["confidence"],reverse=True)
+    accepted=[]
+    for item in sorted_items:
+        current=item["bbox_xyxy_pixels"]
+        if any(other["source_label"]==item["source_label"] and
+               float(_iou(
+                   __import__("numpy").asarray(current,dtype=float),
+                   __import__("numpy").asarray([other["bbox_xyxy_pixels"]],dtype=float)
+               )[0]) >= threshold for other in accepted):
+            continue
+        accepted.append(item)
+        if len(accepted)>=220:break
+    return sorted(accepted,key=lambda x:(x["bbox_xyxy_pixels"][1],x["bbox_xyxy_pixels"][0]))
+
+
+def predict_image_crop(session, crop, left, top):
+    """Run a single 640x640 ONNX pass and map results to whole-image coordinates."""
+    import numpy as np
+    width,height=crop.size
+    scale=min(640/width,640/height)
+    w,h=max(1,round(width*scale)),max(1,round(height*scale))
+    px,py=(640-w)//2,(640-h)//2
+    resized=crop.resize((w,h),Image.Resampling.BILINEAR)
+    padded=Image.new("RGB",(640,640),(114,114,114))
+    padded.paste(resized,(px,py))
+    tensor=np.asarray(padded,dtype=np.float32).transpose(2,0,1)[None]/255.0
+    raw=session.run(None,{session.get_inputs()[0].name:tensor})[0]
+    results=decode_predictions(raw,width,height,scale,px,py)
+    if left or top:
+        for item in results:
+            b=item["bbox_xyxy_pixels"]
+            item["bbox_xyxy_pixels"]=[
+                b[0]+left,b[1]+top,b[2]+left,b[3]+top
+            ]
+    return results
+
+
+def detailed_detect(image_path):
+    """Research-only multi-scale pass; enable in production ONLY after benchmark."""
+    image_path=Path(image_path)
+    if not image_path.is_file():
+        raise OnnxDetectorError("Kart fotoğrafı bulunamadı.")
+    session=_session()
+    with Image.open(image_path) as original:
+        board=ImageOps.exif_transpose(original).convert("RGB")
+    width,height=board.size
+    try:
+        all_detections=predict_image_crop(session,board,0,0)
+        for x1,y1,x2,y2 in candidate_tiles(width,height):
+            with board.crop((x1,y1,x2,y2)) as crop:
+                all_detections.extend(predict_image_crop(session,crop,x1,y1))
+        return merge_overlapping_detections(all_detections)
+    except OnnxDetectorError:
+        raise
+    except Exception as exc:
+        LOG.exception("Detailed PCB ONNX inference failed")
+        raise OnnxDetectorError("Ayrıntılı tarama başarısız. Normal tarama kullanılabilir.") from exc
+
+
 def automatic_detect(image_path, progress=None):
     """Return unverified proposals from the pinned 21-class ONNX checkpoint."""
     import numpy as np
