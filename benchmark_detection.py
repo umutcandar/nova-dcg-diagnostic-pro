@@ -128,6 +128,7 @@ def score_predictions(records, threshold=0.45, iou_threshold=0.50):
         raise ValueError("Eşikler 0..1 aralığında olmalı")
     aggregate = Counter()
     confusion = Counter()
+    errors = []
     per_class = {label: Counter() for label in CLASSES}
     board_stats = {}
     for record in records:
@@ -159,6 +160,12 @@ def score_predictions(records, threshold=0.45, iou_threshold=0.50):
                 per_class[truth]["tp"] += 1
             else:
                 local["class_errors"] += 1
+                errors.append({"board_id": record["board_id"],
+                               "image": str(record.get("image") or ""),
+                               "kind": "class_confusion", "actual": truth,
+                               "predicted": pred,
+                               "bbox_xyxy_pixels": preds[pi]["bbox"],
+                               "confidence": preds[pi]["confidence"]})
                 per_class[truth]["fn"] += 1
                 per_class[pred]["fp"] += 1
                 if truth == "Kondansatör" and pred == "Diyot":
@@ -167,10 +174,21 @@ def score_predictions(records, threshold=0.45, iou_threshold=0.50):
                     local["diode_as_capacitor"] += 1
         for gi, truth in enumerate(gt):
             if gi not in used_gt:
+                errors.append({"board_id": record["board_id"],
+                               "image": str(record.get("image") or ""),
+                               "kind": "missed_component",
+                               "actual": truth["label"], "predicted": None,
+                               "bbox_xyxy_pixels": truth["bbox"]})
                 per_class[truth["label"]]["fn"] += 1
                 confusion[(truth["label"], "(kaçırıldı)")] += 1
         for pi, pred in enumerate(preds):
             if pi not in used_pred:
+                errors.append({"board_id": record["board_id"],
+                               "image": str(record.get("image") or ""),
+                               "kind": "false_candidate", "actual": None,
+                               "predicted": pred["label"],
+                               "bbox_xyxy_pixels": pred["bbox"],
+                               "confidence": pred["confidence"]})
                 per_class[pred["label"]]["fp"] += 1
                 confusion[("(arka plan)", pred["label"])] += 1
         local["gt"] = len(gt)
@@ -209,6 +227,7 @@ def score_predictions(records, threshold=0.45, iou_threshold=0.50):
         "class_precision": _rate(correct, pred_count),
         "class_recall": _rate(correct, gt_count),
         "per_class": class_results,
+        "error_cases": errors,
         "confusion": [
             {"actual": a, "predicted": b, "count": count}
             for (a, b), count in sorted(confusion.items())
