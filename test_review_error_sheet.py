@@ -35,7 +35,7 @@ class ReviewSheetTests(unittest.TestCase):
         self.assertEqual(result["shown_errors"], 1)
 
     def test_rejects_unverified_report_or_wrong_threshold(self):
-        with self.assertRaisesRegex(ValueError, "eşik"):
+        with self.assertRaisesRegex(ValueError, "güven"):
             create_review_sheet(self.report_path, self.base/"x.png", .6)
         self.report["ground_truth_available"] = False
         self.report_path.write_text(json.dumps(self.report, ensure_ascii=False), encoding="utf-8")
