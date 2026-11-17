@@ -12,7 +12,7 @@
   const DIGITS=Object.freeze({siyah:0,kahverengi:1,kirmizi:2,turuncu:3,sari:4,yesil:5,mavi:6,mor:7,gri:8,beyaz:9});
   const MULTIPLIER=Object.freeze({...DIGITS,altin:-1,gumus:-2});
   const TOLERANCE=Object.freeze({kahverengi:1,kirmizi:2,yesil:0.5,mavi:0.25,mor:0.1,gri:0.05,altin:5,gumus:10});
-  const LABELS=Object.freeze(["Direnç","Kondansatör","Diyot","Entegre","Transistör","Bobin","Konnektör","Bilinmiyor","MOSFET","LED","Anahtar","Header","Kristal","Test noktası","Trimpot","Batarya","Buzzer","Ekran","Sigorta","Soğutucu","Pad","Pin","Röle","Trafo"]);
+  const LABELS=Object.freeze(["Direnç","Kondansatör","Diyot","Entegre","Transistör","Bobin","Konnektör","Bilinmiyor","MOSFET","LED","Anahtar","Header","Kristal","Test noktası","Trimpot","Batarya","Buzzer","Ekran","Sigorta","Soğutucu","Pad","Pin","Röle","Trafo","Elektrolitik Kondansatör","Zener Diyot","Ferrit Boncuk","Jumper"]);
   const GUIDES=Object.freeze({
     "Direnç": {mode:"resistance", title:"Direnç (Ω)", probes:"İki uç arasında ölç. Polarite önemli değil.", explanation:"Nominal Ω değeri direnç üzerindeki işaretten veya renk bantlarından hesaplanabilir. Devre içi paralel yollar okumayı değiştirebilir."},
     "Trimpot": {mode:"resistance",title:"Direnç (Ω)",probes:"Üç uçlu ayarlı dirençtir. Yalnızca doğrulanmış pin dizilimine göre dış uçlar arasında toplam direnci, sürgü (wiper) ve uç arasında ayar değerini ölç.",explanation:"Üstteki vida ayarı değiştirir; sürgüye ait direnç sabit değildir. Örn. 103 kodu standart 3 rakamlı direnç koduysa 10 kΩ nominal toplam yol demektir. Fotoğraftan kesin pin sırası ve değer belirlenemez."},
@@ -37,6 +37,10 @@
     "Pin":{mode:"none",title:"Şema gerekli",probes:"Bilinmeyen pinlere rastgele ölçüm uygulama.",explanation:"Pin işlevi ve beklenen voltaj fotoğraftan çıkarılamaz."},
     "Röle":{mode:"resistance",title:"Bobin Ω / kontak sürekliliği",probes:"Bobin ve kontakları parça datasheetine göre ayır; sadece enerjisiz ölç.",explanation:"Bobin direnci ve kontak yapısı modele bağlıdır, evrensel aralık yoktur."},
     "Trafo":{mode:"resistance",title:"Sargı sürekliliği",probes:"Yüksek gerilim riski yokken sadece şemada doğrulanmış aynı sargının uçlarında ölç.",explanation:"Sargı direnci devreye göre değişir; düşük Ω tek başına kısa devre kanıtı değildir."},
+    "Elektrolitik Kondansatör":{mode:"capacitance",title:"Kapasitans (µF)",probes:"Enerjiyi kes ve büyük kapasitörün artık gerilimini uygun şekilde kontrol et; güvenli biçimde deşarj et. Polariteyi doğrula, ölçümü uygun cihazla yap.",explanation:"Polarize elektrolitik kapasitördür. Nominal µF ve V işareti kapasitans ile dayanım gerilimini gösterir; V değeri karttaki çalışma gerilimi değildir. ESR ve kaçak akım için uygun cihaz ve üretici koşulları gerekir."},
+    "Zener Diyot":{mode:"diode",title:"Diyot modu (V)",probes:"Anot ve katodu işaret/datasheet ile doğrula. Fluke diyot modunda ileri yöndeki davranışı kontrol et; ters kırılma gerilimini bu testten çıkarma.",explanation:"Zener ters kırılma gerilimi genellikle Fluke diyot modunda ölçülemez. Doğrulanmış zener kodu, kontrollü akım sınırlamalı test düzeni ve datasheet olmadan ters yönde sayısal sınır/uygulama verilmez."},
+    "Ferrit Boncuk":{mode:"resistance",title:"Direnç (Ω)",probes:"Enerjisiz devrede, iki terminali net şema ile doğrulayarak ölç. Parça yolunu kısa devre sanma.",explanation:"Ferrit boncukta düşük DC direnç normal olabilir; yüksek frekans empedansını Fluke Ω modu göstermez. Fotoğraftan nominal empedans aralığı bilinemez."},
+    "Jumper":{mode:"continuity",title:"Süreklilik (Ω)",probes:"Jumperın iki gerçek bağlantı ucunu PCB hattı veya şemadan doğrula; enerji kesildikten sonra sürekliliğini kontrol et.",explanation:"0 Ω jumper/bağlantı köprüsü düşük dirençli olabilir. Devre içi paralel yollar nedeniyle kesin sağlamlık eşiği verilemez."},
     "Bilinmiyor":{mode:"resistance",title:"Önce parça türünü belirle",probes:"Parça üzerindeki kodu incele, kılıf/bağlantı türünü ve datasheeti doğrula.",explanation:"Türü belirsiz eleman için sayısal ölçüm eşiği uydurulmaz."}
   });
   const MARKING_NOTE="Kodun parça türüne ve üretici işaretleme sistemine uygun olduğunu teknisyen doğrulamalıdır.";
@@ -107,7 +111,7 @@
     let decoded=null;
     if(label==="Direnç"||label==="Trimpot"){
       decoded=bands(colorBands)||smdResistor(marking);
-    }else if(label==="Kondansatör"){
+    }else if(label==="Kondansatör"||label==="Elektrolitik Kondansatör"){
       decoded=capacitorMarking(marking);
     }
     return {label,mode:guide.mode,title:guide.title,probes:guide.probes,
