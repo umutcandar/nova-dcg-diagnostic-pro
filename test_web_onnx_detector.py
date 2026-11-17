@@ -54,6 +54,28 @@ class ONNXDetectorTests(unittest.TestCase):
         )
         self.assertEqual(actual[0]["alternatives"][1]["confidence"],.36)
 
+    def test_tiled_inference_crops_stay_inside_large_photo(self):
+        self.assertEqual(model.candidate_tiles(640,480),[])
+        crop_regions=model.candidate_tiles(1600,1200)
+        self.assertGreaterEqual(len(crop_regions),4)
+        self.assertLessEqual(len(crop_regions),9)
+        for x1,y1,x2,y2 in crop_regions:
+            self.assertTrue(0<=x1<x2<=1600)
+            self.assertTrue(0<=y1<y2<=1200)
+            self.assertTrue(x2-x1>=640)
+
+    def test_tiled_inference_removes_same_class_duplicates_but_keeps_ambiguity(self):
+        shared={"label":"Kondansatör","source_label":"capacitor"}
+        first={**shared,"confidence":.8,"bbox_xyxy_pixels":[10,20,80,130]}
+        duplicate={**shared,"confidence":.5,"bbox_xyxy_pixels":[11,21,81,131]}
+        different={"label":"Diyot","source_label":"diode","confidence":.65,
+                   "bbox_xyxy_pixels":[11,21,81,131]}
+        result=model.merge_overlapping_detections([duplicate,different,first])
+        self.assertEqual(len(result),2)
+        self.assertEqual([x["source_label"] for x in result],["capacitor","diode"] if
+                         result[0]["confidence"]>.7 else ["diode","capacitor"])
+        self.assertEqual(next(x for x in result if x["source_label"]=="capacitor")["confidence"],.8)
+
     def test_low_confidence_predictions_are_not_reported(self):
         data=self.fake_prediction()
         data[0,0,100]=100
