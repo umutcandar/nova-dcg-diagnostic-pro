@@ -93,7 +93,7 @@ python -m unittest -v test_benchmark_detection test_multiscale_detection
 
 ## V2 eğitim altyapısı
 
-Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
+Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli; hem teknisyen onayı hem de tüm görünür parçaların etiketlendiğine dair **`annotation_complete: true`** onayı bulunmalı. Eksik etiketli fotoğraflar V2 eğitimi tarafından reddedilir.
 
 Veri denetimi (model eğitmez):
 
