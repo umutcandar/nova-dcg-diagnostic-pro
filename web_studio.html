@@ -218,23 +218,35 @@ for(let i=regions.length-1;i>=0;i--){let b=boxOf(regions[i]);if(validBox(b)&&p[0
 vp.addEventListener('pointerup',pointerFinish);vp.addEventListener('pointercancel',e=>{pointer=null;drawStart=null;drawEnd=null;vp.classList.remove('dragging');draw();});
 window.addEventListener('resize',()=>{if(imgW)fit();else draw();});
 function openFile(file){
+if(records.length&&!confirm('Yeni fotoğraf açınca kaydedilmemiş ölçümler kaybolacak. Önce JSON raporunu indirdin mi?'))return;
 if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Yalnız JPG/PNG/WebP ve en fazla 12 MB dosya desteklenir.','warn');return;}
 const token=++requestId,reader=new FileReader();
 reader.onerror=()=>status('Fotoğraf okunamadı.','warn');
 reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);photo.onload=()=>{if(token!==requestId)return;imgW=photo.naturalWidth;imgH=photo.naturalHeight;photo.style.display='block';$('empty').hidden=true;regions=[];records=[];selected=-1;seq=0;drawStart=null;drawEnd=null;showRegions();showHistory();showGuide();fit();$('reanalyze').disabled=false;status('Fotoğraf yüklendi, model taraması başlatılıyor...');analyze();};photo.onerror=()=>status('Görüntü formatı çözümlenemedi.','warn');photoName=file.name;dataUrl=url;photo.src=url;};
 reader.readAsDataURL(file);
 }
+function analysisImage(){
+  // Downscale in the browser: lighter CPU/RAM load, stripped EXIF, no server storage.
+  const ratio=Math.min(1,1600/Math.max(imgW,imgH));
+  const reduced=document.createElement('canvas');
+  reduced.width=Math.max(1,Math.round(imgW*ratio));
+  reduced.height=Math.max(1,Math.round(imgH*ratio));
+  const dc=reduced.getContext('2d');
+  dc.drawImage(photo,0,0,reduced.width,reduced.height);
+  return reduced.toDataURL('image/jpeg',.88);
+}
 async function analyze(){
-if(!dataUrl)return;const token=++requestId;
+if(!dataUrl||!imgW)return;const token=++requestId;
 $('reanalyze').disabled=true;$('modelState').textContent='Analiz sürüyor';status('Model kartı inceliyor. İlk taramada model dosyasının indirilmesi gerekebilir.');
 const ctl=new AbortController(),timeout=setTimeout(()=>ctl.abort(),180000);
 try{
-const response=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:dataUrl}),signal:ctl.signal,cache:'no-store'});
+const response=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:analysisImage()}),signal:ctl.signal,cache:'no-store'});
 let payload=await response.json();if(token!==requestId)return;
 if(!response.ok)throw new Error(payload.error||'Tarama işlemi başarısız');
 const found=Array.isArray(payload.detections)?payload.detections:[];
 regions=regions.filter(r=>r.source==='manual');
-found.forEach(r=>{const box=boxOf(r);if(!validBox(box))return;regions.push({id:++seq,label:String(r.label||'Bilinmiyor'),source:'model',confidence:typeof r.confidence==='number'?r.confidence:null,confirmed:false,bbox_xyxy_pixels:box,source_label:r.source_label||null});});
+const analyzedW=Number(payload.image_width)||imgW,analyzedH=Number(payload.image_height)||imgH;
+found.forEach(r=>{const raw=boxOf(r);if(!validBox(raw))return;const box=[raw[0]*imgW/analyzedW,raw[1]*imgH/analyzedH,raw[2]*imgW/analyzedW,raw[3]*imgH/analyzedH];if(!validBox(box))return;regions.push({id:++seq,label:String(r.label||'Bilinmiyor'),source:'model',confidence:typeof r.confidence==='number'?r.confidence:null,confirmed:false,bbox_xyxy_pixels:box,source_label:r.source_label||null});});
 selected=-1;showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday';
 status(found.length?found.length+' model adayı işaretlendi. Seçerek doğrula ve ölç.':'Model aday bulamadı. Elle işaretleme yapabilirsin.',found.length?'good':'warn');
 }catch(err){if(token!==requestId)return;$('modelState').textContent='Model taranamadı';status(err.name==='AbortError'?'Tarama zaman aşımına uğradı. Manuel işaretleme kullanılabilir.':'Model taranamadı: '+err.message+'. Elle işaretleme yapabilirsin.','warn');}
