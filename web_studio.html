@@ -286,9 +286,9 @@ function renderAlternatives(){
  const hint=NovaCorrections.reviewHint(r,imgW,imgH);
  const alternatives=Array.isArray(r.alternatives)?r.alternatives.filter(a=>
     a&&LABELS.includes(a.label)&&a.label!==r.label&&a.confidence>=.10).slice(0,3):[];
- if(!hint&&!alternatives.length)return;
+ if(!hint&&!r.review_required&&!alternatives.length)return;
  root.hidden=false;
- if(hint){root.classList.add('reviewHint');const t=document.createElement('p');t.className='warning';t.textContent='⚠ Şüpheli model tahmini: '+hint;root.append(t);}
+ if(hint||r.review_required){root.classList.add('reviewHint');const t=document.createElement('p');t.className='warning';t.textContent='⚠ Parça türü kontrol edilmeli: '+[r.review_note,hint].filter(Boolean).join(' ');root.append(t);}
  else root.classList.remove('reviewHint');
  const lead=document.createElement('p');lead.textContent='Alternatifleri kontrol et. Bu değerler model skorudur; doğruluk oranı değildir.';root.append(lead);
  const row=document.createElement('div');row.className='quickFix';
@@ -309,7 +309,7 @@ $('removeRegion').disabled=selected<0;
 $('forgetCorrections').disabled=!photoDigest||!photoCorrections.length;
 $('exportCorrections').disabled=!photoDigest||!photoCorrections.length;
 const savedCount=regions.filter(r=>r.human_verified&&r.confirmed).length;
-const suspicious=regions.filter(r=>!r.confirmed&&NovaCorrections.reviewHint(r,imgW,imgH)).length;
+const suspicious=regions.filter(r=>!r.confirmed&&(r.review_required||NovaCorrections.reviewHint(r,imgW,imgH))).length;
 $('correctionSummary').textContent=savedCount+' teknisyen onaylı · '+suspicious+' şüpheli model tahmini · '+photoCorrections.length+' fotoğrafa kayıtlı düzeltme';
 $('exportLabels').disabled=!imgW||!regions.length;
 const root=$('results');root.replaceChildren();
@@ -324,7 +324,7 @@ regions.forEach((r,i)=>{
  sub.textContent=r.confirmed&&r.human_verified?'✓ Teknisyen onayı'+(r.original_model_label&&r.original_model_label!==r.label?' · Model: '+r.original_model_label:''):
  (r.source==='manual'?'Elle işaretlendi':
  (typeof r.confidence==='number'?Math.round(r.confidence*100)+'% model skoru · doğrulanmadı':'Model önerisi · doğrulanmadı'))+
- (hint?' · ⚠ Sınıfı kontrol et':'');
+ (hint||r.review_required?' · ⚠ Sınıfı kontrol et':'');
  left.append(sub);b.append(left);
  const arrow=document.createElement('span');arrow.textContent='›';b.append(arrow);
  b.onclick=()=>changeSelected(i);root.append(b);
@@ -511,6 +511,7 @@ found.forEach(r=>{
  if(!validBox(box))return;
  regions.push({id:++seq,label:String(r.label||'Bilinmiyor'),source:'model',
   confidence:typeof r.confidence==='number'?r.confidence:null,confirmed:false,
+  review_required:r.review_required===true,review_note:typeof r.review_note==='string'?r.review_note.slice(0,220):'',
   bbox_xyxy_pixels:box,source_label:r.source_label||null,
   alternatives:Array.isArray(r.alternatives)?r.alternatives.filter(a=>
     a&&LABELS.includes(a.label)&&typeof a.confidence==='number').slice(0,3):[]});
@@ -542,7 +543,7 @@ const merged=NovaCorrections.apply(regions,photoCorrections,imgW,imgH,LABELS);
 regions=merged.regions;
 regions.forEach(r=>{if(!Number.isInteger(r.id))r.id=++seq;});
 const candidates=regions.map((r,i)=>({r,i})).filter(x=>LABELS.includes(x.r.label)&&x.r.label!=='Bilinmiyor');
-const suspicious=candidates.filter(x=>!x.r.confirmed&&NovaCorrections.reviewHint(x.r,imgW,imgH));
+const suspicious=candidates.filter(x=>!x.r.confirmed&&(x.r.review_required||NovaCorrections.reviewHint(x.r,imgW,imgH)));
 suspicious.sort((a,b)=>(b.r.confidence||0)-(a.r.confidence||0));
 candidates.sort((a,b)=>(b.r.confidence||0)-(a.r.confidence||0));
 selected=suspicious.length?suspicious[0].i:(candidates.length?candidates[0].i:-1);
