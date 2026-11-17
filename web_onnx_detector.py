@@ -164,6 +164,7 @@ def decode_predictions(output, width, height, scale, pad_x, pad_y, confidence=0.
     if not mask.any():
         return []
     coords=raw[mask,:4]
+    class_scores=scores[mask]
     ids=ids[mask]
     certainty=certainty[mask]
     x1=(coords[:,0]-coords[:,2]/2-pad_x)/scale
@@ -175,6 +176,7 @@ def decode_predictions(output, width, height, scale, pad_x, pad_y, confidence=0.
     boxes[:,[1,3]]=np.clip(boxes[:,[1,3]],0,height)
     valid=(boxes[:,2]-boxes[:,0]>=2)&(boxes[:,3]-boxes[:,1]>=2)
     boxes=boxes[valid];ids=ids[valid];certainty=certainty[valid]
+    class_scores=class_scores[valid]
     kept=[]
     for idx in np.argsort(certainty)[::-1]:
         if len(kept)>=200:
@@ -192,6 +194,15 @@ def decode_predictions(output, width, height, scale, pad_x, pad_y, confidence=0.
             "confidence": round(float(certainty[index]),6),
             "bbox_xyxy_pixels": boxes[index].astype(float).tolist(),
             "source": "model_21_onnx",
+            "alternatives": [
+                {
+                    "label": LABELS[CLASSES[int(class_id)]],
+                    "source_label": CLASSES[int(class_id)],
+                    "confidence": round(float(class_scores[index, class_id]), 6),
+                }
+                for class_id in np.argsort(class_scores[index])[::-1][:3]
+                if float(class_scores[index, class_id]) >= 0.08
+            ],
             "verified": False,
         })
     return sorted(results,key=lambda obj:(obj["bbox_xyxy_pixels"][1],obj["bbox_xyxy_pixels"][0]))
