@@ -63,6 +63,9 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(low["diode_as_capacitor"], 1)
         self.assertEqual(low["capacitor_as_diode"], 0)
         self.assertEqual(low["classification_errors"], 1)
+        self.assertEqual(len(low["error_cases"]), 2)
+        self.assertEqual({x["kind"] for x in low["error_cases"]},
+                         {"class_confusion", "false_candidate"})
         self.assertEqual(low["candidate_precision"], .75)
         self.assertEqual(low["class_recall"], .6667)
         self.assertEqual(high["false_positive_candidates"], 0)
