@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from PIL import Image
 from pcb_mc_import import PRESENT_NAMES, import_pcb_mc, convert_bbox, load_coco, select_official_fold
+from pcb_mc_train import validate_fold, train_fold
 
 
 class PCBMCCOCOTests(unittest.TestCase):
@@ -55,6 +56,23 @@ class PCBMCCOCOTests(unittest.TestCase):
         self.assertIn("4 ",(output/"labels/val/pcb_c.txt").read_text())
         self.assertIn("Electrolytic Capacitor",(output/"data.yaml").read_text())
         self.assertTrue((output/"images/train/pcb_a.png").exists())
+
+    def test_imported_board_aware_fold_is_trainable_without_training_yet(self):
+        out=self.root/"prepared"
+        import_pcb_mc(self.images,self.coco,self.manifest,out,link=False)
+        metadata=validate_fold(out)
+        self.assertTrue(metadata["board_identity_split_from_official_manifest"])
+        self.assertEqual(metadata["source_val_images"],1)
+        with self.assertRaisesRegex(ValueError,"Epochs"):
+            train_fold(out,self.root/"trained",epochs=0)
+
+    def test_trainable_audit_refuses_class_order_change(self):
+        out=self.root/"prepared"
+        import_pcb_mc(self.images,self.coco,self.manifest,out,link=False)
+        yaml=out/"data.yaml"
+        yaml.write_text(yaml.read_text().replace("Electrolytic Capacitor","Unknown"),encoding="utf-8")
+        with self.assertRaisesRegex(ValueError,"Class names"):
+            validate_fold(out)
 
     def test_same_board_filename_can_not_be_in_two_splits(self):
         self.save_split({"folds":[{"fold":0,"train_images":["pcb_a.png","pcb_b.png"],
