@@ -32,9 +32,21 @@ Web JSON'u `coordinate_system: "xyxy_normalized"`, `image_coordinate_space: "exi
 ## Otomatik testler
 
 ```bash
-python -m unittest -v test_web_studio test_web_security test_web_dataset_alignment
-node --test test_web_review.cjs
+python -m unittest -v test_web_studio test_web_security test_web_dataset_alignment test_web_onnx_detector
+node --test test_web_review.cjs test_web_component_knowledge.cjs
 python -m unittest discover -p 'test_*.py' -v
 ```
 
 GitHub Actions'taki `web-studio-smoke.yml`, kimlik doğrulamayı, kutu koordinatlarını, etiket biçimini ve referans kurallarını test eder. Bunlar henüz gerçek arızalı PCB'de bağımsız doğrulama değildir.
+
+## 21 sınıflı ONNX modeli ve lisans kontrolü
+
+- Web sürümü GPU/PyTorch kullanmadan ONNX Runtime CPU üzerinde çalışacak biçimde yenilendi. Kaynak model: [Arshia82sbn PCB YOLOv8s](https://huggingface.co/Arshia82sbn/pcb-yolov8s-detection).
+- Kaynak checkpoint **44.777.137 bayt** büyüklüğündedir; indirilirken SHA-256 `bfc398bb93ce61d9d7d00389db51b651bd90c4e2141163a0ae6dad79a247ae29` ile doğrulanır. Uyuşmazsa çalıştırılmaz.
+- Model yayıncısının verdiği değerlendirme: precision 0,761, recall 0,571, mAP@0,5 = 0,619. Bunlar NOVA DCG'nin bağımsız saha sonuçları değildir. Bazı sınıflarda doğruluk düşüktür; tüm işaretlemeler teknisyen tarafından incelenmelidir.
+- Kaynak model kartı **MIT** dese de ONNX dosyasının gömülü meta verisi **Ultralytics AGPL-3.0** bildirimi taşır. Ticari kullanım/dağıtım ve ağ hizmeti yükümlülükleri hakkında kesin yorum yapılmadan ticari ürün olarak sunulmamalıdır.
+- ONNX, 21 kaynak sınıfı içerir; NOVA editöründeki 24 etiket gelecekteki eğitim/düzenleme kapsamıdır. Ek sınıfların tamamının eğitimli dedektörde bulunduğu anlamına gelmez.
+- Sadece görüntüden değer aralığı çıkarılamaz. Doğrulanmış 4–5 bantlı direnç kodu veya standart SMD kodu nominal değeri verir. Trimpot sürgüsü ayara göre değişir. Genel silisyum PN diyot örneği olarak Fluke 0,5–0,8 V verir; bu evrensel sağlamlık eşiği değildir.
+- **Model hazır değilse** /model-status durumunu kontrol et, analiz hatasından sonra yeniden tara veya manuel işaretlemeye devam et. Kullanıcı fotoğrafları Hugging Face'e gönderilmez; model dosyası indirilir, görüntü Render süreci içinde geçici olarak işlenir.
+
+Ölçüm ve işaretleme referansları: [Fluke diyot ölçümü](https://www.fluke.com/en-us/learn/blog/digital-multimeters/how-to-test-diodes), [Fluke direnç ölçümü](https://www.fluke.com/en-us/learn/blog/digital-multimeters/how-to-measure-resistance), [Panasonic direnç işaretleri](https://industrial.panasonic.com/sa/ds/ss/technical/b28), [Vishay renk kodu](https://www.vishay.com/docs/20143/colorcod.pdf).
