@@ -57,6 +57,7 @@ def prepare(source_dir, output_dir, seed=42):
         split=split_map[board]
         key=hashlib.sha256(str(annotation).encode()).hexdigest()[:12]
         name=f"{annotation.stem}_{key}"
+        destination=out/"images"/split/(name+image.suffix.lower())
         # Web labels use the browser-visible (EXIF-transposed) coordinates.
         # Save an orientation-normalized JPG so training boxes cannot rotate
         # away from the pictured components. Legacy annotations are untouched.
