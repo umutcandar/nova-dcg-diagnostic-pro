@@ -8,14 +8,24 @@
   konum+sınıf eşleşmesi buldu; 36-epoch deneysel 10 sınıflı aday aynı
   kuralla **37/169 (%21,89)** yaptı. Bu rakamlar küçük keşif testidir,
   saha doğruluğu kanıtı değildir.
-- Web'de 24 teknisyen etiketi yer alır, ancak mevcut otomatik dedektör
+- Web'de 28 teknisyen etiketi yer alır, ancak mevcut otomatik dedektör
   **21 sınıf** tanır. Kullanıcı onaylı parça düzeltmeleri yalnız aynı
   fotoğrafa bağlı tarayıcı kaydıdır, ONNX'i kendiliğinden eğitmez.
 - Teknik eğitim kanıtları ve lisans/veri kısıtları:
   [PCB_MODEL_TRAINING_EVIDENCE.md](PCB_MODEL_TRAINING_EVIDENCE.md).
-- 23 ayrı mevcut parça sınıfı barındıran akademik PCB-MC verisinden
-  üretilecek büyük model için **içe aktarma ve eğitim kodu hazır**,
-  fakat 3,77 GB kaynak veriyle gerçek model eğitimi yapılmadı.
+- **23 sınıflı resmî PCB-MC-C eğitim hattı gerçekten çalıştırıldı**:
+  3 turluk ilk denemede 492 eğitim ve 123 resmî kart bazlı doğrulama
+  fotoğrafı kullanıldı. mAP50 %2,54 ve recall %3,36; bu araştırma
+  ağırlığı canlı modele geçirilmedi ve teknik serviste güvenilir değildir.
+- Veri 23 sınıf arasında dengesizdir: Zener için yalnız 9 eğitim / 4
+  doğrulama etiketi var. Yeni farklı kartlardan doğrulanmış görseller
+  toplanmadan yalnız epoch artırmak bu sorunu çözdüğünü kanıtlamaz.
+- Saha tarafı: 4K fotoğraf ayrıntısını koruyan, boyut kontrollü JPEG
+  aktarımı ve diyot/kondansatör çakışmasını işaretleyen teknisyen uyarıları
+  eklendi; önceki mobil/tarayıcı 1600px küçültme kaldırıldı.
+- Gerçek 23-sınıf deney ve model kaynak QA raporu:
+  [23 sınıf eğitimi](https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44143570427)
+  ve [sınıf bazlı yayın kararı](https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44146357359).
 - Gözle görülen etiketleri bilmek, parçanın **nominal elektriksel değerini**
   veya arızasını kesin biçimde fotoğraftan belirlemek anlamına gelmez.
 
@@ -60,7 +70,7 @@ düğme yüzeyleri olarak çizilir.
 
 ## V2 eğitim altyapısı
 
-Web çalışma alanındaki etiket taksonomisi 24 sınıftır; canlı ONNX modeli 21 sınıftır. Eski V2 iş akışındaki 14 sınıf bilgisi tarihsel kalmıştır. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
+Web çalışma alanındaki etiket taksonomisi 28 sınıftır; canlı ONNX modeli 21 sınıftır. Eski V2 iş akışındaki 14 sınıf bilgisi tarihsel kalmıştır. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
 
 Veri denetimi (model eğitmez):
 
