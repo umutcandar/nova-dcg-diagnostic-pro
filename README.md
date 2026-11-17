@@ -74,7 +74,16 @@ python benchmark_detection.py --annotations pcb_annotations \
   --output pcb_holdout_report.json
 ```
 
-Raporda `false_positive_candidates`, `missed_components`, `candidate_precision`, `candidate_recall`, `class_precision`, `class_recall`, `capacitor_as_diode`, `diode_as_capacitor` ve sınıf karmaşıklığı farklı güven eşiklerinde ayrı ayrı raporlanır. `candidate_precision`, gerçek etiketlerle konum eşleştirme başarısıdır; elektronik sağlamlık veya tüm kartlarda model doğruluğu değildir. Ayrıca **`error_cases`** alanı hatalı adayların hangi kart ve görüntü kutusunda çıktığını verir; buradan gerçek kondansatör/diyot etiketlerini kontrol edip hedefli eğitim örnekleri hazırlanabilir. Yanlış pozitifleri azaltmak için **0.22 / 0.35 / 0.45 / 0.55 / 0.65** eşikleri karşılaştırılır; yüksek eşik bazı gerçek komponentleri de kaçırabilir. **Gerçek etiketli bağımsız testler olmadan eşik otomatik yükseltilmez.**
+Raporda `false_positive_candidates`, `missed_components`, `candidate_precision`, `candidate_recall`, `class_precision`, `class_recall`, `capacitor_as_diode`, `diode_as_capacitor` ve sınıf karmaşıklığı farklı güven eşiklerinde ayrı ayrı raporlanır. `candidate_precision`, gerçek etiketlerle konum eşleştirme başarısıdır; elektronik sağlamlık veya tüm kartlarda model doğruluğu değildir. İncelenecek yanlış kutuları tek PNG sayfasında görmek için gerçek benchmark raporundan:
+
+```bash
+python review_error_sheet.py --report pcb_holdout_report.json \
+  --threshold 0.45 --output pcb_error_review.png
+```
+
+Bu işlem yalnızca **yerel fotoğrafları** kırpar ve hata örneklerini gösterir; fotoğrafları internete yüklemez. Çıkan görseller eğitim için otomatik etiket değildir, insan doğrulaması gerekir.
+
+Ayrıca **`error_cases`** alanı hatalı adayların hangi kart ve görüntü kutusunda çıktığını verir; buradan gerçek kondansatör/diyot etiketlerini kontrol edip hedefli eğitim örnekleri hazırlanabilir. Yanlış pozitifleri azaltmak için **0.22 / 0.35 / 0.45 / 0.55 / 0.65** eşikleri karşılaştırılır; yüksek eşik bazı gerçek komponentleri de kaçırabilir. **Gerçek etiketli bağımsız testler olmadan eşik otomatik yükseltilmez.**
 
 ```bash
 python -m unittest -v test_benchmark_detection test_multiscale_detection
