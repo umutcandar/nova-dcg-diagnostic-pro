@@ -38,6 +38,14 @@ class SessionStoreTests(unittest.TestCase):
         self.assertEqual(fresh["reading"],100)
         self.assertEqual(len(fresh["measurement_history"]),1)
 
+    def test_rejected_candidate_review_survives_same_photo_rescan(self):
+        rejected = self.task()
+        rejected["technician_rejected_candidate"] = True
+        save_autosave(self.photo, [rejected], folder=self.storage)
+        fresh = self.task(bbox=[21, 30, 51, 45])
+        self.assertEqual(restore_autosave(self.photo,[fresh],folder=self.storage),1)
+        self.assertTrue(fresh["technician_rejected_candidate"])
+
     def test_does_not_copy_readings_to_unrelated_parts(self):
         measured = self.task()
         measured["reading"]=100
