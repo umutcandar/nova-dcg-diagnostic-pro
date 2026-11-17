@@ -84,7 +84,7 @@ def download_range(url, start, end, size):
     return body
 
 
-def parse_directory(data, expected_entries):
+def parse_directory(data, expected_entries, details=False):
     names=[]
     offset=0
     while offset < len(data):
@@ -100,14 +100,25 @@ def parse_directory(data, expected_entries):
         next_offset = offset + 46 + name_size + extra_size + comment_size
         if next_offset > len(data):
             raise ProbeError("Invalid filename length in central directory")
-        names.append(data[offset+46:offset+46+name_size].decode("utf-8",errors="replace"))
+        name=data[offset+46:offset+46+name_size].decode("utf-8",errors="replace")
+        if details:
+            names.append({
+                "name":name,
+                "method":struct.unpack_from("<H",data,offset+10)[0],
+                "crc32":struct.unpack_from("<I",data,offset+16)[0],
+                "compressed_size":struct.unpack_from("<I",data,offset+20)[0],
+                "uncompressed_size":struct.unpack_from("<I",data,offset+24)[0],
+                "local_offset":struct.unpack_from("<I",data,offset+42)[0],
+            })
+        else:
+            names.append(name)
         offset=next_offset
     if len(names)!=expected_entries:
         raise ProbeError("ZIP central directory count mismatch")
     return names
 
 
-def read_remote_zip_names(url,size):
+def read_remote_zip_names(url,size,details=False):
     tail_size=min(size,65557)
     tail=download_range(url,size-tail_size,size-1,size)
     if tail is None:
@@ -149,7 +160,7 @@ def read_remote_zip_names(url,size):
     directory=download_range(url,cd_offset,cd_offset+cd_size-1,size)
     if directory is None:
         return {"state":"range_unsupported","entries":[]}
-    names=parse_directory(directory,total)
+    names=parse_directory(directory,total,details=details)
     return {"state":"verified_zip_directory","entries":names}
 
 
