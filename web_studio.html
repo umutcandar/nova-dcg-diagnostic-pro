@@ -546,9 +546,12 @@ const suspicious=candidates.filter(x=>!x.r.confirmed&&NovaCorrections.reviewHint
 suspicious.sort((a,b)=>(b.r.confidence||0)-(a.r.confidence||0));
 candidates.sort((a,b)=>(b.r.confidence||0)-(a.r.confidence||0));
 selected=suspicious.length?suspicious[0].i:(candidates.length?candidates[0].i:-1);
-showRegions();showGuide();draw();$('modelState').textContent=regions.length+' aday · 21 sınıf';
+showRegions();showGuide();draw();
+const scanningDetail=payload.inference_mode==='tiled_detail';
+$('modelState').textContent=regions.length+' aday · 21 sınıf'+(scanningDetail?' · Detaylı':'');
 const corrected=merged.applied+merged.restored;
 status((found.length?found.length+' model adayı':'Model aday bulamadı')+
+ (scanningDetail?' · Yüksek çözünürlüklü parça-parça tarandı.':'')+
  (corrected?' · '+corrected+' eski teknisyen düzeltmesi uygulandı.':'')+
  (suspicious.length?' · '+suspicious.length+' şüpheli etiket kontrol edilmeli.':''),
  corrected?'good':suspicious.length?'warn':found.length?'good':'warn');
