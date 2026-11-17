@@ -37,6 +37,23 @@ class ONNXDetectorTests(unittest.TestCase):
         self.assertAlmostEqual(result[0]["bbox_xyxy_pixels"][2],740.0)
         self.assertAlmostEqual(result[0]["bbox_xyxy_pixels"][3],480.0)
 
+    def test_model_returns_second_chance_component_types(self):
+        output=self.fake_prediction()
+        output[0,0,20]=300
+        output[0,1,20]=280
+        output[0,2,20]=90
+        output[0,3,20]=170
+        output[0,4+6,20]=.47   # diode
+        output[0,4+3,20]=.36   # capacitor
+        output[0,4+20,20]=.13  # transistor
+        actual=model.decode_predictions(output,640,640,1,0,0)
+        self.assertEqual(actual[0]["label"],"Diyot")
+        self.assertEqual(
+            [x["label"] for x in actual[0]["alternatives"]],
+            ["Diyot","Kondansatör","Transistör"]
+        )
+        self.assertEqual(actual[0]["alternatives"][1]["confidence"],.36)
+
     def test_low_confidence_predictions_are_not_reported(self):
         data=self.fake_prediction()
         data[0,0,100]=100
