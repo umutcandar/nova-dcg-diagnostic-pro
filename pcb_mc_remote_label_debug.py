@@ -68,11 +68,25 @@ def inspect_label(filename):
         raise ProbeError(f"Expected exactly one fold0 candidate; found {len(candidates)}")
     body=read_remote_member(item["download_url"],EXPECTED_SIZE,candidates[0])
     rows=body.decode("utf-8").splitlines()
+    from tempfile import TemporaryDirectory
+    from pcb_mc_download_fold import _strict_yolo_label
+    with TemporaryDirectory() as temp:
+        local=Path(temp)/filename
+        local.write_bytes(body)
+        converted=[]
+        class_counts=_strict_yolo_label(local,converted)
+        validated=local.read_text(encoding="utf-8").splitlines()
+        if len(validated)!=len(rows) or any(len(row.split())!=5 for row in validated if row.strip()):
+            raise ProbeError("Real official polygon file could not be normalized to 5-column detection labels")
     target=11
     return {
         "source":"4TU PCB-MC-C public official fold0",
         "file":candidates[0]["name"],
         "total_rows":len(rows),
+        "converted_polygon_rows":len(converted),
+        "verified_result_row_11":validated[10],
+        "verified_capacitor_objects":class_counts["Capacitor"],
+        "training_labels_now_detection_boxes":True,
         "row_count_nonstandard_5cols":sum(1 for line in rows if line.strip() and len(line.split())!=5),
         "around_row_11":[
             {"line":i+1,"column_count":len(rows[i].split()),"preview":rows[i][:300]}
