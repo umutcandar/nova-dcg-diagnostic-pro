@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 
 API = "https://data.4tu.nl/v2"
 DOI = "10.4121/7c6e5bda-eecf-4feb-8a3a-7f823b1b0140"
+DIRECT_UUID = "7c6e5bda-eecf-4feb-8a3a-7f823b1b0140"
 EXPECTED_FILENAME = "PCB_MC.zip"
 EXPECTED_SIZE = 3772070324
 EXPECTED_MD5 = "1533d1ca6d54c37b19c1a94297c0745c"
@@ -131,12 +132,20 @@ def read_remote_zip_names(url,size):
 
 
 def inspect(api=API):
-    articles=get_json(api+"/articles/search",post={"doi":DOI})
-    article=articles[0]
-    if not isinstance(article.get("id"),int):
-        raise ProbeError("Official API returned no numeric article identifier")
-    files=get_json(api+f"/articles/{article['id']}/files")
-    item=select_official_file(articles,files)
+    # 4TU uses UUID article identifiers, not the old Figshare numeric ID.
+    # The PCB-MC DOI embeds this exact UUID, so read the official article
+    # directly rather than trusting the legacy DOI search endpoint.
+    article=get_json(api+"/articles/"+DIRECT_UUID)
+    if not isinstance(article,dict):
+        raise ProbeError("Official UUID article endpoint returned invalid metadata")
+    doi=article.get("doi","")
+    title=article.get("title","")
+    if not isinstance(doi,str) or not doi.startswith(DOI):
+        raise ProbeError("Official article DOI does not match expected PCB-MC source")
+    if not isinstance(title,str) or "PCB-MC" not in title:
+        raise ProbeError("Official article title does not match source")
+    files=get_json(api+"/articles/"+DIRECT_UUID+"/files")
+    item=select_official_file([article],files)
     directory=read_remote_zip_names(item["download_url"],EXPECTED_SIZE)
     entries=directory["entries"]
     return {
