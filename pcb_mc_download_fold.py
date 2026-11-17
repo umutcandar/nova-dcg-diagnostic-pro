@@ -78,26 +78,75 @@ def file_md5(file):
     return hasher.hexdigest()
 
 
-def _strict_yolo_label(label_file):
+def _strict_yolo_label(label_file, conversion_log=None):
+    """Validate detection labels and convert verified YOLO polygons to boxes.
+
+    Publisher's fold0 contains occasional YOLO segmentation polygons among
+    standard 5-column detection boxes. A polygon is exactly one class id plus
+    >=3 (x,y) points. Its axis-aligned enclosing rectangle is a legitimate
+    detection target, not an estimate of nominal electrical component values.
+    Every converted line is recorded in the training source audit.
+    """
+    import math
+    label_file=Path(label_file)
+    rows=label_file.read_text(encoding="utf-8").splitlines()
+    out=[]
     count=Counter()
-    for line_number,line in enumerate(Path(label_file).read_text(encoding="utf-8").splitlines(),1):
+    conversions=[]
+    for line_number,line in enumerate(rows,1):
         fields=line.split()
         if not fields:
             continue
-        if len(fields)!=5:
-            raise ProbeError(f"Malformed YOLO row {label_file.name}:{line_number}")
         try:
             class_id=int(fields[0])
-            cx,cy,w,h=map(float,fields[1:])
-        except ValueError as exc:
-            raise ProbeError(f"Non-numeric YOLO box {label_file.name}:{line_number}") from exc
-        import math
-        if class_id not in range(len(PRESENT_NAMES)) or not all(map(math.isfinite,(cx,cy,w,h))):
-            raise ProbeError(f"Unrecognised class or non-finite box in {label_file}")
+        except (ValueError, IndexError) as exc:
+            raise ProbeError(f"Non-numeric YOLO class {label_file.name}:{line_number}") from exc
+        if class_id not in range(len(PRESENT_NAMES)):
+            raise ProbeError(f"Unrecognised class in {label_file.name}:{line_number}")
+        if len(fields)==5:
+            try:
+                cx,cy,w,h=map(float,fields[1:])
+            except ValueError as exc:
+                raise ProbeError(f"Non-numeric YOLO box {label_file.name}:{line_number}") from exc
+        elif len(fields)>=7 and len(fields)%2==1 and len(fields)<=1001:
+            try:
+                points=[float(value) for value in fields[1:]]
+            except ValueError as exc:
+                raise ProbeError(f"Non-numeric YOLO polygon {label_file.name}:{line_number}") from exc
+            if not all(math.isfinite(x) and 0<=x<=1 for x in points):
+                raise ProbeError(f"Out-of-image polygon coordinate {label_file.name}:{line_number}")
+            pairs=list(zip(points[::2],points[1::2]))
+            if len(set(pairs))<3:
+                raise ProbeError(f"Degenerate YOLO polygon {label_file.name}:{line_number}")
+            xs,ys=points[::2],points[1::2]
+            xmin,xmax=min(xs),max(xs)
+            ymin,ymax=min(ys),max(ys)
+            w,h=xmax-xmin,ymax-ymin
+            cx,cy=(xmin+xmax)/2,(ymin+ymax)/2
+            conversions.append({
+                "file":label_file.name,
+                "row":line_number,
+                "source":"yolo_polygon",
+                "points":len(pairs),
+                "converted_class":PRESENT_NAMES[class_id],
+            })
+        else:
+            raise ProbeError(f"Malformed YOLO row {label_file.name}:{line_number}: {len(fields)} columns")
+        if not all(math.isfinite(value) for value in (cx,cy,w,h)):
+            raise ProbeError(f"Non-finite YOLO coordinates {label_file.name}:{line_number}")
         if w<=0 or h<=0 or cx-w/2<-1e-5 or cy-h/2<-1e-5 or \
            cx+w/2>1+1e-5 or cy+h/2>1+1e-5:
             raise ProbeError(f"Out-of-image YOLO label in {label_file.name}:{line_number}")
         count[PRESENT_NAMES[class_id]]+=1
+        if len(fields)==5:
+            out.append(line.strip())
+        else:
+            out.append(f"{class_id} {cx:.9f} {cy:.9f} {w:.9f} {h:.9f}")
+    if conversions:
+        # Only rewrite once the entire original label file has passed all checks.
+        label_file.write_text("\n".join(out)+("\n" if out else ""),encoding="utf-8")
+    if conversion_log is not None:
+        conversion_log.extend(conversions)
     return count
 
 
@@ -165,6 +214,7 @@ def extract_official_fold(archive,destination,*,fold=0,full_md5=True):
     if destination==archive.parent or archive in destination.parents:
         raise ValueError("Dataset output may not contain the ZIP itself")
     counts={"train":Counter(),"val":Counter()}
+    polygon_conversions={"train":[],"val":[]}
     files_by_split={"train":{"images":{},"labels":{}},"val":{"images":{},"labels":{}}}
     source_prefix=f"PCB_MC/images/PCB-MC-C/kfold_data/fold_{fold}/"
     with ZipFile(archive) as zipped:
@@ -220,7 +270,7 @@ def extract_official_fold(archive,destination,*,fold=0,full_md5=True):
                     if target.stat().st_size!=info.file_size:
                         raise ProbeError("Extracted file size differs from ZIP catalog")
                     if kind=="labels":
-                        counts[split].update(_strict_yolo_label(target))
+                        counts[split].update(_strict_yolo_label(target,polygon_conversions[split]))
     if not counts["train"] or not counts["val"]:
         raise ProbeError("Expected non-empty class labels in train and validation")
     # We use the author's existing YOLO files, not a guessed COCO class index.
@@ -244,6 +294,13 @@ def extract_official_fold(archive,destination,*,fold=0,full_md5=True):
         "source_val_images":len(files_by_split["val"]["images"]),
         "class_order":list(PRESENT_NAMES),
         "labels_per_split":{s:dict(counts[s]) for s in counts},
+        "polygon_rows_converted_to_detection_boxes":{
+            split:len(items) for split,items in polygon_conversions.items()
+        },
+        "polygon_conversion_examples":{
+            split:items[:25] for split,items in polygon_conversions.items()
+        },
+        "polygon_conversion_method":"min/max normalized x/y -> enclosing box; original label bytes remain in source ZIP",
         "training_completed":False,
         "live_model_unchanged":True,
     }
