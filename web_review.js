@@ -58,6 +58,7 @@
       technician_verified: true,
       regions: verified,
       annotation_source: "nova-dcg-web-manual-review",
+      image_coordinate_space: "exif_transposed",
       image_width: width,
       image_height: height
     };
