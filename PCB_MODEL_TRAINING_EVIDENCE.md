@@ -1,5 +1,46 @@
 # NOVA DCG — PCB eğitim ve bağımsız test kayıtları
 
+## 17 Kasım 2026 — 23 sınıflı tam kaynakla gerçek araştırma denemesi ve kullanıcı fotoğraf kalitesi
+
+- **Gerçek 4TU eğitim işi tamamlandı:** 492 train + 123 val fotoğrafı,
+  resmî fold 0, 3 epoch, 640 px, YOLOv8n, CPU.
+- Kaynak 3.772.070.324 baytlık ZIP'in **tam MD5'i doğrulandı**.
+  Train etiketlerinin iki çokgen satırı standart YOLO bounding-box
+  biçimine dönüştürüldü; kaynak ZIP değiştirilmedi.
+- Resmî bağımsız kart tasarımı doğrulamasında:
+  precision = **0,6804**, recall = **0,0336**,
+  mAP@0.5 = **0,02538**, mAP@0.5:0.95 = **0,01346**.
+- **Çok düşük recall nedeniyle canlı modele yükseltme yapılmadı.**
+  Bu 3 epoch sadece kaynak indirme→etiket→train→validation boru
+  hattının gerçekten çalıştığını kanıtlar. İyileşme iddiası içermez.
+- Eğitimde 36.844 normal kondansatör, 112 elektrolitik kondansatör,
+  162 diyot, **9 Zener diyot** etiketi; doğrulamada sırasıyla
+  9.533 / 26 / 50 / **4** etiket var. Dört hedef sınıfta mAP50–95
+  sırasıyla **%2,25 / %0 / %0 / %0** oldu. Zener için daha çok
+  **bağımsız kartlardan ve teknisyen doğrulamalı** örnek şarttır.
+- Kaynak modelin checkpoint SHA256 dosyası **yeniden hash'lenip
+  eşleşti**, .pt pickle dosyası analiz için çalıştırılmadı.
+  Sınıf bazlı incelemede 12 sınıf veri toplama için işaretlendi;
+  bu sayı araştırma öncelik eşiğidir, cihaz sağlamlık eşiği değildir.
+- Canlı web ONNX yine **21 otomatik sınıf** olarak kalıyor.
+  Teknisyenin seçebildiği sınıf 28'dir.
+- Web istemcisindeki 1600px ön küçültme nedeniyle 4K kaynak
+  fotoğrafın SMD detayı kayboluyordu. Artık maksimum **4096 piksel**
+  kenarı ve güvenli JSON/JPEG boyutu kontrolünü destekliyor; bu
+  değişikliğin bağımsız saha doğruluğu henüz ölçülmüş değildir.
+- Diyot–kondansatör için aynı koordinatlarda birden fazla aday
+  veya yakın model skorları olduğunda **sınıf onayı uyarısı**
+  gösteriliyor; otomatik kesin arıza kararı verilmez.
+
+Gerçek eğitim:
+https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44143570427
+
+Ağırlık hash doğrulaması ve sınıf bazlı model incelemesi:
+https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44146357359
+
+---
+
+
 ## 17 Kasım 2026 — PCB-MC gerçek arşiv, ZIP64 ve poligon veri kalitesi
 
 Resmî 4TU PCB-MC-C veri arşivi doğrulandı: `PCB_MC.zip`,
@@ -29,9 +70,8 @@ COCO anotasyonları her katlamanın train/valid bölümünde ayrı:
   doğrulandı: satır 11 = `1 0.819320886 0.518027597 0.024495855 0.083881930`.
   Eğitim için bu aşamada bütün kaynak veri arşivini yeniden indirmeye
   gerek duyulmadı.
-- Bu çözümün **tüm katlamadaki** karışık biçimleri temizlediği henüz
-  kanıtlanmış sayılmaz; 23 sınıflı modelin gerçek eğitim sonucunu
-  ayrı denemede doğrulamak gerekir.
+- Fold 0'taki iki çokgen satırı dönüştürülerek gerçek 3 epoch eğitimi
+  tamamlandı. Diğer fold'ların tüm dosyaları henüz ayrı denenmedi.
 - Kaynak tek satır doğrulaması:
   https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44143393469
 - Yeni eğitim denemesi:
