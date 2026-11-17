@@ -18,8 +18,8 @@ DIRECT_UUID = "7c6e5bda-eecf-4feb-8a3a-7f823b1b0140"
 EXPECTED_FILENAME = "PCB_MC.zip"
 EXPECTED_SIZE = 3772070324
 EXPECTED_MD5 = "1533d1ca6d54c37b19c1a94297c0745c"
-MAX_CENTRAL_DIRECTORY = 12 * 1024 * 1024
-MAX_ENTRIES = 25000
+MAX_CENTRAL_DIRECTORY = 64 * 1024 * 1024
+MAX_ENTRIES = 150000
 
 
 class ProbeError(RuntimeError):
@@ -143,7 +143,7 @@ def read_remote_zip_names(url,size):
     elif on_disk != total:
         raise ProbeError("ZIP directory entry counts disagree")
     if total>MAX_ENTRIES:
-        raise ProbeError("Too many archive entries")
+        raise ProbeError(f"Too many archive entries: {total if 'total' in locals() else len(names)}")
     if cd_size > MAX_CENTRAL_DIRECTORY or cd_offset+cd_size>size:
         raise ProbeError("Unusually large central directory; manual review required")
     directory=download_range(url,cd_offset,cd_offset+cd_size-1,size)
