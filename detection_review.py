@@ -26,10 +26,17 @@ def review_detections(detections, corrections=None, threshold=0.55):
                 raise ValueError("Unsupported corrected component type")
             record["verified"]=True
             record["review_note"]="Teknisyen tarafından düzeltildi"
+            record["display_label"]=label
+            record["needs_review"]=False
         else:
             record["verified"]=False
-            record["review_note"]="Düşük güven: teknisyen doğrulaması gerekli" if confidence is None or confidence<threshold else "Model tahmini: teknisyen doğrulaması gerekli"
-        record["display_label"]=label if label in ALLOWED else str(record.get("source_label") or label)
+            if record.get("ambiguity_reason") == "capacitor_diode_overlap":
+                record["review_note"]="Kondansatör / diyot çakışması: komponent tipini doğrulayın"
+                record["needs_review"]=True
+                record["display_label"]="Kondansatör / Diyot (belirsiz)"
+            else:
+                record["review_note"]="Düşük güven: teknisyen doğrulaması gerekli" if confidence is None or confidence<threshold else "Model tahmini: teknisyen doğrulaması gerekli"
+                record["display_label"]=label if label in ALLOWED else str(record.get("source_label") or label)
         record["label"]=label if label in ALLOWED else "Bilinmiyor"
         result.append(record)
     return result
