@@ -485,14 +485,26 @@ reader.onload=()=>{if(token!==requestId)return;const url=String(reader.result);p
 reader.readAsDataURL(file);
 }
 function analysisImage(){
-  // Downscale in the browser: lighter CPU/RAM load, stripped EXIF, no server storage.
-  const ratio=Math.min(1,1600/Math.max(imgW,imgH));
+  // Preserve fine SMD detail: 1600px thumbnails erased small PCB markings.
+  // Limit both image pixels and Base64 transfer to the authenticated API.
+  // The web backend accepts up to 12 MiB decoded image / 17 MiB JSON body.
+  const limit=15_000_000; // Approx <=11.25 MB JPEG, with margin for JSON.
   const reduced=document.createElement('canvas');
-  reduced.width=Math.max(1,Math.round(imgW*ratio));
-  reduced.height=Math.max(1,Math.round(imgH*ratio));
-  const dc=reduced.getContext('2d');
-  dc.drawImage(photo,0,0,reduced.width,reduced.height);
-  return reduced.toDataURL('image/jpeg',.88);
+  let maxSide=Math.min(4096,Math.max(imgW,imgH));
+  let quality=.86;
+  for(let attempt=0;attempt<8;attempt++){
+    const ratio=Math.min(1,maxSide/Math.max(imgW,imgH));
+    reduced.width=Math.max(1,Math.round(imgW*ratio));
+    reduced.height=Math.max(1,Math.round(imgH*ratio));
+    const dc=reduced.getContext('2d');
+    if(!dc)throw new Error('Tarayıcı resim işlemeyi desteklemiyor.');
+    dc.drawImage(photo,0,0,reduced.width,reduced.height);
+    const data=reduced.toDataURL('image/jpeg',quality);
+    if(data.length<=limit)return data;
+    maxSide=Math.max(1024,Math.round(maxSide*.76));
+    quality=Math.max(.64,quality-.04);
+  }
+  throw new Error('Fotoğraf sıkıştırılamadı. Daha küçük bir JPG deneyebilirsin.');
 }
 async function analyze(){
 if(!dataUrl||!imgW)return;const token=++requestId;
