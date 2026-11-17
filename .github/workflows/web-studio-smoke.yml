@@ -8,6 +8,8 @@ on:
       - 'web_studio.html'
       - 'web_review.js'
       - 'web_component_knowledge.js'
+      - 'web_corrections.js'
+      - 'test_web_corrections.cjs'
       - 'test_web_component_knowledge.cjs'
       - 'test_web_review.cjs'
       - 'test_web_studio.py'
@@ -21,6 +23,8 @@ on:
       - 'web_studio.html'
       - 'web_review.js'
       - 'web_component_knowledge.js'
+      - 'web_corrections.js'
+      - 'test_web_corrections.cjs'
       - 'test_web_component_knowledge.cjs'
       - 'test_web_review.cjs'
       - 'test_web_studio.py'
@@ -53,8 +57,9 @@ jobs:
           node --check /tmp/nova-studio.js
           node --check web_review.js
           node --check web_component_knowledge.js
+          node --check web_corrections.js
       - name: Technician review and reference-rule tests
-        run: node --test test_web_review.cjs test_web_component_knowledge.cjs
+        run: node --test test_web_review.cjs test_web_component_knowledge.cjs test_web_corrections.cjs
       - name: Verify exported labels with Python training validator
         run: |
           node - <<'JS' > /tmp/nova-annotation.json
