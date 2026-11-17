@@ -56,8 +56,8 @@ jobs:
           python pcb_train_candidate.py \
             --source /tmp/nova-train-data \
             --output artifacts/candidate \
-            --epochs "${{ github.event_name == 'workflow_dispatch' && inputs.epochs || 6 }}" \
-            --imgsz "${{ github.event_name == 'workflow_dispatch' && inputs.imgsz || 512 }}" \
+            --epochs "${{ github.event_name == 'workflow_dispatch' && inputs.epochs || 36 }}" \
+            --imgsz "${{ github.event_name == 'workflow_dispatch' && inputs.imgsz || 640 }}" \
             --batch 4 --device cpu
       - name: Summarize real training results and limits
         if: always()
