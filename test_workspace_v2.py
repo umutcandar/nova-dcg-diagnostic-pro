@@ -118,6 +118,10 @@ class V2WorkspaceTests(unittest.TestCase):
             self.wait_for_detection()
         self.assertIn("ÇAKIŞMASI", self.app.component_meta.get())
         self.assertEqual(self.app.tasks[0]["mode"], "Doğrulama gerekli")
+        self.app.reading.set("0.55")
+        self.app.save_measurement()
+        self.assertIn("Önce komponent türünü", self.app.measure_result.get())
+        self.assertNotIn("measurement_history", self.app.tasks[0])
 
     def test_photo_replace_and_visible_error(self):
         with patch("pcb_workspace_v2.automatic_detect",side_effect=RuntimeError("Model indirilemedi")):
