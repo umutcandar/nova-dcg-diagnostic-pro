@@ -12,7 +12,7 @@
   const DIGITS=Object.freeze({siyah:0,kahverengi:1,kirmizi:2,turuncu:3,sari:4,yesil:5,mavi:6,mor:7,gri:8,beyaz:9});
   const MULTIPLIER=Object.freeze({...DIGITS,altin:-1,gumus:-2});
   const TOLERANCE=Object.freeze({kahverengi:1,kirmizi:2,yesil:0.5,mavi:0.25,mor:0.1,gri:0.05,altin:5,gumus:10});
-  const LABELS=Object.freeze(["Direnç","Kondansatör","Diyot","Entegre","Transistör","Bobin","Konnektör","Bilinmiyor","MOSFET","LED","Anahtar","Header","Kristal","Test noktası","Trimpot"]);
+  const LABELS=Object.freeze(["Direnç","Kondansatör","Diyot","Entegre","Transistör","Bobin","Konnektör","Bilinmiyor","MOSFET","LED","Anahtar","Header","Kristal","Test noktası","Trimpot","Batarya","Buzzer","Ekran","Sigorta","Soğutucu","Pad","Pin","Röle","Trafo"]);
   const GUIDES=Object.freeze({
     "Direnç": {mode:"resistance", title:"Direnç (Ω)", probes:"İki uç arasında ölç. Polarite önemli değil.", explanation:"Nominal Ω değeri direnç üzerindeki işaretten veya renk bantlarından hesaplanabilir. Devre içi paralel yollar okumayı değiştirebilir."},
     "Trimpot": {mode:"resistance",title:"Direnç (Ω)",probes:"Üç uçlu ayarlı dirençtir. Yalnızca doğrulanmış pin dizilimine göre dış uçlar arasında toplam direnci, sürgü (wiper) ve uç arasında ayar değerini ölç.",explanation:"Üstteki vida ayarı değiştirir; sürgüye ait direnç sabit değildir. Örn. 103 kodu standart 3 rakamlı direnç koduysa 10 kΩ nominal toplam yol demektir. Fotoğraftan kesin pin sırası ve değer belirlenemez."},
@@ -28,6 +28,15 @@
     "Header":{mode:"continuity",title:"Süreklilik (Ω)",probes:"Şemada karşılık gelen pinleri doğrula.",explanation:"Pin numarası/işlevi fotoğrafa bakılarak güvenle belirlenemez."},
     "Kristal":{mode:"resistance",title:"Uygun cihaz gerekli",probes:"Parça datasheeti ve uygun osilatör testi gerekir.",explanation:"Fluke Ω ile frekans veya rezonans sağlığı doğrulanmaz."},
     "Test noktası":{mode:"resistance",title:"Şema gerekli",probes:"Şemadan neti ve uygun test koşullarını doğrula.",explanation:"Fotoğraftan beklenen voltaj bilinemez."},
+    "Batarya":{mode:"none",title:"Enerjisiz test kapsamında değil",probes:"Bataryaya Ω veya diyot modu probunu rastgele bağlama; kimyasına uygun üretici güvenlik prosedürü gerekir.",explanation:"Batarya kimyası ve terminal şeması olmadan ölçüm aralığı bilinemez."},
+    "Buzzer":{mode:"none",title:"Üretici testi gerekli",probes:"Piezo/aktif/pasif buzzer türü ve üretici prosedürü belirlenmeli.",explanation:"Buzzer için evrensel Ω veya voltaj aralığı yoktur."},
+    "Ekran":{mode:"none",title:"Şema gerekli",probes:"Ekran konnektörlerine datasheet olmadan prob bağlama.",explanation:"Besleme ve veri pinleri tipe özgüdür."},
+    "Sigorta":{mode:"continuity",title:"Süreklilik (Ω)",probes:"Enerji kesildikten, artık gerilim güvenli seviyede doğrulandıktan sonra sigortanın iki terminalini ölç.",explanation:"Kontak/hat topolojisini ve paralel yolları dikkate al; türüne göre üretici sınırları değişir."},
+    "Soğutucu":{mode:"none",title:"Pasif mekanik parça",probes:"Elektriksel ölçüm yerine mekanik montajı ve yalıtımı doğrula.",explanation:"Soğutucunun sabit elektriksel direnç aralığı yoktur."},
+    "Pad":{mode:"none",title:"PCB bağlantı yüzeyi",probes:"Şemada net/bağlantı bulunmadan rastgele test noktası sanıp prob bağlama.",explanation:"Pad parça değeri taşımaz; şema gerekir."},
+    "Pin":{mode:"none",title:"Şema gerekli",probes:"Bilinmeyen pinlere rastgele ölçüm uygulama.",explanation:"Pin işlevi ve beklenen voltaj fotoğraftan çıkarılamaz."},
+    "Röle":{mode:"resistance",title:"Bobin Ω / kontak sürekliliği",probes:"Bobin ve kontakları parça datasheetine göre ayır; sadece enerjisiz ölç.",explanation:"Bobin direnci ve kontak yapısı modele bağlıdır, evrensel aralık yoktur."},
+    "Trafo":{mode:"resistance",title:"Sargı sürekliliği",probes:"Yüksek gerilim riski yokken sadece şemada doğrulanmış aynı sargının uçlarında ölç.",explanation:"Sargı direnci devreye göre değişir; düşük Ω tek başına kısa devre kanıtı değildir."},
     "Bilinmiyor":{mode:"resistance",title:"Önce parça türünü belirle",probes:"Parça üzerindeki kodu incele, kılıf/bağlantı türünü ve datasheeti doğrula.",explanation:"Türü belirsiz eleman için sayısal ölçüm eşiği uydurulmaz."}
   });
   const MARKING_NOTE="Kodun parça türüne ve üretici işaretleme sistemine uygun olduğunu teknisyen doğrulamalıdır.";
