@@ -1,0 +1,46 @@
+name: PCB MC 23-class real CPU training trial
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/pcb-mc-train-official.yml"
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 115
+    permissions:
+      contents: read
+    env:
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      YOLO_CONFIG_DIR: /tmp/novayolo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CPU training libraries
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1+cpu torchvision==0.20.1+cpu
+          pip install "ultralytics>=8.3,<9" "PyYAML>=6,<7" "Pillow>=10,<13"
+      - name: Test official source fold importer
+        run: python -m unittest -v test_pcb_mc_archive_probe test_pcb_mc_import test_pcb_mc_download_fold
+      - name: Check disk resources
+        run: df -h .
+      - name: Stream 4TU 3.77GB and verify exact published MD5
+        run: |
+          python pcb_mc_download_fold.py --zip /tmp/PCB_MC.zip --output artifacts/dataset/fold0 --fold 0 --download
+      - name: Train and validate actual 23-class model (research only)
+        run: |
+          python pcb_mc_train.py --prepared artifacts/dataset/fold0 --output artifacts/model --epochs 3 --imgsz 640 --batch 4 --device cpu
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-pcb-mc-23class-experiment
+          path: |
+            artifacts/dataset/fold0/import_audit.json
+            artifacts/model/training_report.json
+            artifacts/model/training_runs/pcb_mc_23class/weights/best.pt
+          if-no-files-found: warn
+          retention-days: 30
