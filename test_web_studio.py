@@ -69,6 +69,13 @@ class WebStudioTests(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(body, b"")
 
+    def test_model_status_is_private(self):
+        code, _, _ = self.request("GET", "/model-status", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, _ = self.request("GET", "/model-status")
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["classes"], 21)
+
     def test_review_script_is_private_and_available(self):
         code, _, _ = self.request("GET", "/web_review.js", authorized=False)
         self.assertEqual(code, 401)
@@ -103,8 +110,7 @@ class WebStudioTests(unittest.TestCase):
     def test_real_png_and_mock_model_return_pixel_boxes(self):
         example = {"label": "Direnç", "source_label": "Resistor",
                    "bbox_xyxy_pixels": [3, 5, 21, 25], "confidence": 0.87}
-        from auto_detector import automatic_detect
-        with patch("auto_detector.automatic_detect", return_value=[example]) as fake:
+        with patch("web_onnx_detector.automatic_detect", return_value=[example]) as fake:
             code, body, _ = self.request(
                 "POST", "/analyze",
                 body=json.dumps({"image": self.photo()}),
