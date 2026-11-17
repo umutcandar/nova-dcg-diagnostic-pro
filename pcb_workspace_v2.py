@@ -24,6 +24,7 @@ from component_labeler import launch_labeler
 from session_store import save_autosave, restore_autosave
 from photo_drop import select_dropped_photo
 from recognition_audit import summarize_detections, save_local_audit
+from candidate_review import set_candidate_rejected, review_summary
 
 BG = "#0B1220"
 CARD = "#131D2D"
@@ -259,6 +260,8 @@ class Workspace:
         )
         self.class_menu.pack(fill="x")
         self.class_menu.bind("<<ComboboxSelected>>", self.correct_component)
+        self.reject_button = action(panel, "Yanlış adayı reddet", self.toggle_rejection)
+        self.reject_button.pack(fill="x", pady=(8, 0))
         section(panel, "FLUKE MODU")
         tk.Label(panel, textvariable=self.mode_text, fg=GREEN, bg=CARD,
                  anchor="w", font=(FONT, 17, "bold"), wraplength=300).pack(fill="x")
@@ -507,14 +510,19 @@ class Workspace:
         if existing:
             self.parts.delete(*existing)
         self.parts.tag_configure("low", foreground=AMBER)
+        self.parts.tag_configure("rejected", foreground=RED)
         for idx, task in enumerate(self.tasks):
             confidence = task.get("confidence")
             score = f"{confidence:.0%}" if isinstance(confidence, (int,float)) else "—"
             low = isinstance(confidence,(int,float)) and confidence < .5
+            rejected = task.get("technician_rejected_candidate") is True
             self.parts.insert("", "end", iid=str(idx), values=(
-                idx + 1, task["source_label"], score
-            ), tags=("low",) if low else ())
-        self.detection_count.set(f"{len(self.tasks)} komponent adayı")
+                idx + 1, ("✕ " if rejected else "") + task["source_label"], score
+            ), tags=("rejected",) if rejected else ("low",) if low else ())
+        counts = review_summary(self.tasks)
+        self.detection_count.set(
+            f"{counts['visible_candidates']} aday  •  {counts['manually_rejected']} reddedildi"
+        )
 
     def _select_tree(self, _event=None):
         items = self.parts.selection()
@@ -539,9 +547,19 @@ class Workspace:
         conf = task.get("confidence")
         confidence = f"{conf:.0%}" if isinstance(conf, (int,float)) else "belirtilmedi"
         is_low = isinstance(conf, (int,float)) and conf < 0.5
-        if task.get("technician_verified_type"):
+        rejected = task.get("technician_rejected_candidate") is True
+        self.reject_button.configure(text="Red kararını geri al" if rejected else "Yanlış adayı reddet")
+        if rejected:
+            self.component_meta.set("TEKNİSYEN REDDETTİ  •  Bu kutuda komponent olmadığı belirtildi; ölçüm kapalı.")
+            self.component_meta_label.configure(fg=RED)
+        elif task.get("technician_verified_type"):
             self.component_meta.set("Komponent tipi teknisyen tarafından doğrulandı; elektriksel sağlamlık bilinmiyor.")
             self.component_meta_label.configure(fg=GREEN)
+        elif task.get("ambiguity_reason") == "capacitor_diode_overlap":
+            self.component_meta.set(
+                "KONDANSATÖR / DİYOT ÇAKIŞMASI  •  Tipi doğrulamadan ölçüm yapmayın."
+            )
+            self.component_meta_label.configure(fg=AMBER)
         elif is_low:
             self.component_meta.set(
                 f"DÜŞÜK GÜVEN  •  {confidence}  •  Tip doğrulanmadan ölçüm yapmayın."
@@ -562,10 +580,28 @@ class Workspace:
         self.component_meta.set("Fotoğraf yüklendiğinde komponentler otomatik taranır.")
         self.component_meta_label.configure(fg=MUTED)
         self.class_choice.set("Bilinmiyor")
+        self.reject_button.configure(text="Yanlış adayı reddet")
         for variable in (self.mode_text, self.setup_text, self.probes_text, self.next_text):
             variable.set("—")
         self.expected_text.set("Nominal ve tolerans doğrulanmadan sayısal aralık verilmez.")
         self.measure_result.set("Ölçüm yapılmadı.")
+
+    def toggle_rejection(self):
+        if self.selected is None:
+            self.status.set("Önce bir aday seçin.")
+            return
+        task = self.tasks[self.selected]
+        rejected = not task.get("technician_rejected_candidate", False)
+        set_candidate_rejected(task, rejected)
+        self._refresh_parts()
+        self.parts.selection_set(str(self.selected))
+        self.select_index(self.selected)
+        self._autosave()
+        self._schedule_render()
+        self.status.set(
+            "ADAY REDDEDİLDİ  •  Kutunun görünümü ve Fluke ölçümü kapatıldı"
+            if rejected else "RED GERİ ALINDI  •  Model adayı yeniden görüntüleniyor"
+        )
 
     def correct_component(self, _event=None):
         if self.selected is None:
@@ -574,12 +610,14 @@ class Workspace:
         chosen = self.class_choice.get()
         if chosen not in ALLOWED:
             return
+        set_candidate_rejected(task, False)
         task["component"] = chosen
         task["source_label"] = chosen
         task["mode"], description = instruction_for(chosen)
         task["instruction"] = description + " Kart enerjisiz ve deşarj edilmiş olmalı."
         task["technician_verified_type"] = True
         self.component_title.set(f"{self.selected + 1:02d}  /  {chosen}")
+        self.reject_button.configure(text="Yanlış adayı reddet")
         self.component_meta.set("Tip teknisyen tarafından doğrulandı; elektriksel sağlamlık bilinmiyor.")
         self.component_meta_label.configure(fg=GREEN)
         self._refresh_parts()
@@ -592,6 +630,13 @@ class Workspace:
         if self.selected is None:
             return
         task = self.tasks[self.selected]
+        if task.get("technician_rejected_candidate"):
+            self.mode_text.set("Ölçüm kapalı")
+            self.setup_text.set("Teknisyen bu konumu yanlış pozitif aday olarak reddetti.")
+            self.probes_text.set("—")
+            self.expected_text.set("Reddedilmiş aday için referans veya Fluke ölçümü verilmez.")
+            self.next_text.set("Karar hatalıysa Red kararını geri al düğmesini kullanın.")
+            return
         arguments = {}
         if self.verified_nominal.get():
             try:
@@ -624,6 +669,9 @@ class Workspace:
             self.measure_result.set("Önce fotoğrafta bir komponent seçin.")
             return
         task = self.tasks[self.selected]
+        if task.get("technician_rejected_candidate"):
+            self.measure_result.set("Reddedilmiş adayda ölçüm kaydedilmez. Gerekirse red kararını geri alın.")
+            return
         value = self.reading.get().strip().replace(",", ".")
         try:
             number = float(value)
@@ -658,6 +706,10 @@ class Workspace:
         text.insert("end", f"Tespit edilen aday: {report['detected_candidates']}\n")
         text.insert("end", f"Düşük güven / bilinmiyor: {report['requires_review']}\n")
         text.insert("end", "Modellerin güven puanı doğruluk oranı DEĞİLDİR.\n\n")
+        reviews = review_summary(self.tasks)
+        text.insert("end", f"Teknisyenin reddettiği kutu: {reviews['manually_rejected']}\n")
+        text.insert("end", f"Teknisyenin doğruladığı tür: {reviews['technician_verified_types']}\n")
+        text.insert("end", "Bu sayılar gerçek precision/recall yerine geçmez.\n\n")
         text.insert("end", "PARÇA SINIFLARI\n")
         for name, count in report["class_counts"].items():
             text.insert("end", f"  {name}: {count}\n")
@@ -799,6 +851,8 @@ class Workspace:
                 x, y = self.viewport.to_canvas(left, top)
                 self.canvas.create_image(x, y, anchor="nw", image=self.picture)
         for idx, task in enumerate(self.tasks):
+            if task.get("technician_rejected_candidate"):
+                continue
             x1, y1, x2, y2 = task["bbox_xyxy_pixels"]
             ax, ay = self.viewport.to_canvas(x1, y1)
             bx, by = self.viewport.to_canvas(x2, y2)
