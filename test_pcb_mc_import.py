@@ -57,6 +57,68 @@ class PCBMCCOCOTests(unittest.TestCase):
         self.assertIn("Electrolytic Capacitor",(output/"data.yaml").read_text())
         self.assertTrue((output/"images/train/pcb_a.png").exists())
 
+    def separate_official_coco_files(self):
+        train=self.root/"fold0_train.json"
+        valid=self.root/"fold0_valid.json"
+        train_data={
+            "categories":self.source["categories"],
+            "images":[x for x in self.source["images"] if x["file_name"]!="pcb_c.png"],
+            "annotations":[x for x in self.source["annotations"] if x["image_id"] in (1,2)]
+        }
+        # Valid files can reuse COCO image IDs and annotation IDs from train.
+        val_data={
+            "categories":self.source["categories"],
+            "images":[{"id":1,"file_name":"pcb_c.png","width":200,"height":100}],
+            "annotations":[{"id":1,"image_id":1,"category_id":14,"bbox":[20,30,40,40]}],
+        }
+        train.write_text(json.dumps(train_data),encoding="utf-8")
+        valid.write_text(json.dumps(val_data),encoding="utf-8")
+        return train,valid
+
+    def test_official_train_and_validation_separate_coco_supported(self):
+        train,valid=self.separate_official_coco_files()
+        out=self.root/"fold_from_two_coco"
+        audit=import_pcb_mc(
+            self.images,None,self.manifest,out,link=False,
+            coco_train=train,coco_val=valid
+        )
+        self.assertEqual(audit["source_coco_layout"],"per_fold_train_valid")
+        self.assertIn("6 ",(out/"labels/train/pcb_a.txt").read_text())
+        self.assertIn("4 ",(out/"labels/val/pcb_c.txt").read_text())
+        self.assertEqual(validate_fold(out)["class_order"],list(PRESENT_NAMES))
+
+    def test_fails_closed_if_split_coco_omits_official_photo(self):
+        train,valid=self.separate_official_coco_files()
+        val=json.loads(valid.read_text())
+        val["images"]=[]
+        val["annotations"]=[]
+        valid.write_text(json.dumps(val))
+        with self.assertRaisesRegex(ValueError,"unannotated images"):
+            import_pcb_mc(self.images,None,self.manifest,self.root/"bad",
+                          coco_train=train,coco_val=valid)
+
+    def test_fails_closed_if_split_coco_includes_wrong_side_photo(self):
+        train,valid=self.separate_official_coco_files()
+        train_data=json.loads(train.read_text())
+        train_data["images"]=train_data["images"][:1]
+        train_data["annotations"]=train_data["annotations"][:1]
+        train.write_text(json.dumps(train_data))
+        with self.assertRaisesRegex(ValueError,"unannotated images"):
+            import_pcb_mc(self.images,None,self.manifest,self.root/"bad",
+                          coco_train=train,coco_val=valid)
+
+    def test_rejects_both_task_wide_and_split_files(self):
+        train,valid=self.separate_official_coco_files()
+        with self.assertRaisesRegex(ValueError,"not both"):
+            import_pcb_mc(self.images,self.coco,self.manifest,self.root/"bad",
+                          coco_train=train,coco_val=valid)
+
+    def test_rejects_only_one_fold_coco(self):
+        train,_=self.separate_official_coco_files()
+        with self.assertRaisesRegex(ValueError,"BOTH"):
+            import_pcb_mc(self.images,None,self.manifest,self.root/"bad",
+                          coco_train=train)
+
     def test_imported_board_aware_fold_is_trainable_without_training_yet(self):
         out=self.root/"prepared"
         import_pcb_mc(self.images,self.coco,self.manifest,out,link=False)
