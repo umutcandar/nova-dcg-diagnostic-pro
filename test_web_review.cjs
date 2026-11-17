@@ -22,6 +22,14 @@ test("exports a pipeline-compatible reviewed annotation",()=>{
   assert.deepEqual(result.regions[0].bbox_xyxy_normalized,[.1,.25,.3,.4375]);
 });
 
+test("new 23-class study labels can be human-verified without inventing measurements",()=>{
+ for(const label of ["Elektrolitik Kondansatör","Zener Diyot","Ferrit Boncuk","Jumper"]){
+  const r=review.trainingAnnotation({...args(),regions:[{...box,label}]});
+  assert.equal(r.regions[0].label,label);
+  assert.equal(r.technician_verified,true);
+ }
+});
+
 test("rejects unverified labels, unknown parts and incomplete review",()=>{
   assert.throws(()=>review.trainingAnnotation({...args(),completedReview:false}),/görünür parçaları/);
   assert.throws(()=>review.trainingAnnotation({...args(),regions:[{...box,confirmed:false}]}),/Bütün işaretleri/);
