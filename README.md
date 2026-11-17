@@ -28,6 +28,8 @@ düğme yüzeyleri olarak çizilir.
 - **Zoom:** Görüntü üzerindeyken fare tekerleği veya + / −. Yakınlaştırma imlecin bulunduğu noktayı korur.
 - **Pan:** Fotoğrafı basılı tutup sürükle. **Sığdır** tüm kartı yeniden gösterir.
 - **Parça seçimi:** Sol komponent listesi veya fotoğraftaki kutu. Sarı kutular **model tahminidir**, doğrulanmış parça kimliği değildir.
+- **Yanlış pozitif düzeltmesi:** Sol listeden aday seçip sağ panelde **Yanlış adayı reddet** seçin. Reddedilen kutu fotoğraf üstünden gizlenir ve Fluke ölçümü devre dışı kalır; kırmızı işaretli satır listede kalarak **Red kararını geri al** ile tek tıkla geri getirilebilir. Bu tercih aynı fotoğrafın yeni taramasında yerel otomatik kayıttan geri yüklenir. Teknisyen redleri gerçek model precision/recall sonucu veya doğrulanmış eğitim verisi sayılmaz.
+- **Kondansatör/diyot belirsizliği:** Yoğun çakışan iki sınıf tahmini tek **Kondansatör / Diyot (belirsiz)** kutusudur. Parçanın türünü teknisyen onaylayana kadar Fluke modu seçilmez.
 - **Fluke:** Sağ panel Ω, kapasitans, diyot, vb. modunu, güvenlik hazırlığını, prob talimatlarını ve sonraki kontrolü gösterir.
 - **Doğrulanmış referans:** Nominal, tolerans, birim ve teknisyen onayı olmadan sayısal değer üretilmez.
 - **Ölçüm geçmişi:** Manual Fluke okumaları komponent bazında tutulur. Yerel otomatik yedekler `~/.nova_dcg/autosave` altında; sunucuya yüklenmez.
