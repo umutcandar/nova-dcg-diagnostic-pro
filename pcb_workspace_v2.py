@@ -672,6 +672,9 @@ class Workspace:
         if task.get("technician_rejected_candidate"):
             self.measure_result.set("Reddedilmiş adayda ölçüm kaydedilmez. Gerekirse red kararını geri alın.")
             return
+        if task["component"] == "Bilinmiyor":
+            self.measure_result.set("Parça tipi bilinmiyor. Önce komponent türünü doğrulayın.")
+            return
         value = self.reading.get().strip().replace(",", ".")
         try:
             number = float(value)
