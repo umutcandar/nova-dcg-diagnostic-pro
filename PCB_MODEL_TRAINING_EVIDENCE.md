@@ -1,5 +1,60 @@
 # NOVA DCG — PCB eğitim ve bağımsız test kayıtları
 
+## 17 Kasım 2026 — 36 epoch ve üç modelin aynı veri üzerindeki karşılaştırması
+
+36 epoch, 640px YOLOv8n `candidate10.onnx` gerçekten eğitildi;
+kaynak veri 117 eğitim / 13 doğrulama görüntüsüdür. Eğitim raporu:
+https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44115087646
+
+- Adayın yayımlanan doğrulama sonuçları: precision 0,6478;
+  recall 0,2180; mAP50 0,2609; mAP50-95 0,1288.
+- 6 epoch deneme: mAP50 0,0930. 36 epoch eğitim bu değeri artırdı,
+  ama üretimdeki 21-sınıf ONNX'e otomatik geçiş gerekçesi değildir.
+- **Eşit ölçüm sözleşmesi**: aynı 13 gerçek görüntü, IoU >=0,5, skor >=0,28;
+  karşılaştırılabilen 6 ortak sınıf ve 169 etiketli parça.
+
+| Yöntem | Doğru konum + sınıf | Oran | Kondansatör |
+| --- | ---: | ---: | ---: |
+| Eski 21-sınıf ONNX — tek görüntü | 51/169 | %30,18 | 10/59 |
+| Eski 21-sınıf ONNX — önceki 3x3 detaylı | 91/169 | %53,85 | 29/59 |
+| Yeni 10-sınıf aday — tek görüntü | 37/169 | %21,89 | 15/59 |
+
+Eşit yöntemle karşılaştırma:
+https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44134064015
+
+### Dört ve sekiz bin piksellik fotoğraflarda karo boşluklarının kapatılması
+
+Önceki 3x3 sabit pencereler kaynak 4K/8K görüntülerde bazı piksel
+şeritlerini atlayabiliyordu. İlk düzeltmede pencereleri büyütmek
+test doğruluğunu %53,85'ten **%43,20'ye düşürdü**; bu regresyon
+fark edilip yaklaşım değiştirildi. Son algoritma başarılı özgün karo
+yerlerini korur, yalnız aradaki boşluklara yeni taramalar ekler ve
+en fazla 25 CPU taraması yapar. Aynı 13 resim üzerinde:
+
+- Tek görüntü: 51/169, **%30,18**
+- Yeni detaylı algoritma: **100/169, %59,17**
+- Kondansatör: **32/59** doğru konum+sınıf
+- Eski detaylı algoritma: 91/169, %53,85
+
+Son ölçüm:
+https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44135238512
+
+Bu sonuçların hiçbiri geniş saha doğruluğu veya bağımsız fiziksel-kart
+temelli mAP değildir. Diyot için yalnız 2 gerçek etiket vardır ve
+hiçbiri doğru sınıflandırılmamıştır; yeni eğitim verisi gereklidir.
+Gerçek müşteri kartlarında ayrıca kör test yapılmadan "hazır arıza
+teşhisi" iddiası doğru olmaz.
+
+### Veri sızıntısı kontrolleri
+
+`train_v2_pipeline.py` artık aynı fotoğrafın SHA-256 içerik kopyasını
+farklı `board_id` altında eğitim/test verisine almaz; belirsiz
+`Bilinmiyor` sınıfının eğitim etiketi olarak kullanılmasını da
+reddeder. Bu kontroller aynı görüntünün kayıpsız kopyalarını yakalar;
+döndürülmüş, kırpılmış veya farklı ışıkta çekilmiş aynı kartın tüm
+görünümlerinin tek fiziksel kart kimliğiyle etiketlenmesi ayrıca gerekir.
+
+
 Bu dosya, gerçek model deneylerini ve veri/izin sınırlarını kaydeder. Model her
 kartı doğru tanıyor, her parçanın değerini biliyor veya arızayı otomatik
 belirliyor iddiası **yoktur**.
