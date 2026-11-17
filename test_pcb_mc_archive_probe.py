@@ -1,5 +1,6 @@
 """Unit tests for read-only 4TU PCB-MC ZIP metadata probe, no internet."""
 import io
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +33,30 @@ class PCBMCArchiveProbeTests(unittest.TestCase):
         self.assertEqual(report["state"],"verified_zip_directory")
         self.assertEqual(len(report["entries"]),4)
         self.assertIn("PCB_MC/splits/components_only_splits.json",report["entries"])
+
+    def test_zip64_locator_can_describe_the_same_small_synthetic_archive(self):
+        zipped=self.make_zip()
+        eocd=zipped.rfind(b"PK\\x05\\x06")
+        self.assertGreater(eocd,0)
+        sig,disk,disk_cd,one,total,cd_size,cd_offset,comment=struct.unpack_from(
+            "<4s4H2IH",zipped,eocd
+        )
+        zip64_offset=eocd
+        zip64_record=struct.pack(
+            "<4sQ2H2I4Q",b"PK\\x06\\x06",44,45,45,0,0,
+            total,total,cd_size,cd_offset
+        )
+        locator=struct.pack("<4sIQI",b"PK\\x06\\x07",0,zip64_offset,1)
+        stub=struct.pack("<4s4H2IH",b"PK\\x05\\x06",0,0,
+                         65535,65535,0xffffffff,0xffffffff,0)
+        payload=zipped[:eocd]+zip64_record+locator+stub
+        def fake_range(url,start,end,size):
+            self.assertEqual(size,len(payload))
+            return payload[start:end+1]
+        with patch("pcb_mc_archive_probe.download_range",side_effect=fake_range):
+            result=read_remote_zip_names("https://example.org/PCB_MC.zip",len(payload))
+        self.assertEqual(result["state"],"verified_zip_directory")
+        self.assertEqual(len(result["entries"]),4)
 
     def test_unsupported_range_does_not_download_all(self):
         with patch("pcb_mc_archive_probe.download_range",return_value=None):
