@@ -176,6 +176,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/web_component_knowledge.js":
             content = (ROOT / "web_component_knowledge.js").read_text(encoding="utf-8")
             return self.send_payload(200, content, "application/javascript", head=head)
+        if path == "/model-status":
+            from web_onnx_detector import model_state
+            return self.send_payload(200, model_state(), head=head)
         if path == "/":
             content = (ROOT / "web_studio.html").read_text(encoding="utf-8")
             return self.send_payload(200, content, "text/html", head=head)
@@ -220,9 +223,9 @@ class Handler(BaseHTTPRequestHandler):
                 image.save(path, format="PNG")
                 image.close()
                 try:
-                    from auto_detector import automatic_detect, DetectorSetupError
+                    from web_onnx_detector import automatic_detect, OnnxDetectorError
                     detections = automatic_detect(path)
-                except DetectorSetupError as exc:
+                except OnnxDetectorError as exc:
                     LOG.warning("PCB detector unavailable: %s", type(exc).__name__)
                     return self.send_payload(503, {
                         "error": str(exc)[:350],
@@ -234,6 +237,8 @@ class Handler(BaseHTTPRequestHandler):
                     "image_width": width,
                     "image_height": height,
                     "model_predictions_unverified": True,
+                    "model_name": "pinned_21_class_onnx",
+                    "model_class_count": 21,
                 })
         except (OSError, ValueError):
             LOG.exception("PCB image processing failed")
@@ -250,6 +255,8 @@ if __name__ == "__main__":
         raise SystemExit("NOVA_AUTH_USER ve en az 16 karakterli NOVA_AUTH_PASSWORD gerekli.")
     if HOST not in {"127.0.0.1", "localhost", "::1"} and os.environ.get("NOVA_BEHIND_HTTPS_PROXY") != "1":
         raise SystemExit("Genel ağa yalnızca HTTPS reverse proxy arkasında bağlan.")
-    os.environ.setdefault("NOVA_WEB_LOW_RESOURCE", "1")
-    LOG.info("NOVA DCG private web starting at %s:%s (low-resource inference=%s)", HOST, PORT, os.environ["NOVA_WEB_LOW_RESOURCE"])
+    from threading import Thread
+    from web_onnx_detector import warm_up
+    Thread(target=warm_up, daemon=True, name="nova_onnx_prewarm").start()
+    LOG.info("NOVA DCG private web starting at %s:%s (21-class ONNX CPU)", HOST, PORT)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
