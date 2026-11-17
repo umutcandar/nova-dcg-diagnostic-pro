@@ -108,6 +108,21 @@ class BenchmarkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "güveni"):
             self.run_report()
 
+    def test_confidence_filter_precedes_capacitor_diode_conflict_resolution(self):
+        record = {"board_id": "test", "gt": [{"label": "Kondansatör",
+                  "bbox": [10,10,30,30]}], "predictions": [
+                  {"label": "Kondansatör", "source_label": "Capacitor",
+                   "confidence": .95, "bbox": [10,10,30,30]},
+                  {"label": "Diyot", "source_label": "Diode",
+                   "confidence": .08, "bbox": [10,10,30,30]}]}
+        high = score_predictions([record], threshold=.22)
+        self.assertEqual(high["correct_classes"], 1)
+        self.assertEqual(high["classification_errors"], 0)
+        low = score_predictions([record], threshold=.05)
+        self.assertEqual(low["correct_classes"], 0)
+        self.assertEqual(low["classification_errors"], 1)
+        self.assertEqual(low["false_positive_candidates"], 0)
+
     def test_empty_predictions_distinguishes_absent_measurements(self):
         records = [{"board_id": "a", "gt": [], "predictions": []}]
         result = score_predictions(records)
