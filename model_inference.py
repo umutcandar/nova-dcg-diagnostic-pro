@@ -40,9 +40,11 @@ def _iou(a, b):
 
 
 def deduplicate_detections(predictions, threshold=0.40, max_results=250):
-    """Keep highest-confidence box for near-identical regions of same class.
+    """Deduplicate repeated tile predictions without hiding distinct components.
 
-    Different classes in the same area remain visible for technician review.
+    When Capacitor and Diode boxes very strongly overlap (IoU >= 0.65),
+    show ONE explicitly ambiguous candidate instead of two confident labels.
+    Thresholds are provisional; evaluate on held-out annotated boards.
     """
     kept = []
     for item in sorted(predictions, key=lambda p: p["confidence"], reverse=True):
@@ -53,9 +55,38 @@ def deduplicate_detections(predictions, threshold=0.40, max_results=250):
         ):
             continue
         kept.append(item)
-        if len(kept) >= max_results:
+    merged = []
+    consumed = set()
+    for index, item in enumerate(kept):
+        if index in consumed:
+            continue
+        if item["label"] in ("Kondansatör", "Diyot"):
+            opposite = "Diyot" if item["label"] == "Kondansatör" else "Kondansatör"
+            for other_index in range(index + 1, len(kept)):
+                other = kept[other_index]
+                if (other_index not in consumed and other["label"] == opposite
+                        and _iou(item["bbox_xyxy_pixels"], other["bbox_xyxy_pixels"]) >= 0.65):
+                    uncertain = dict(item)
+                    uncertain.update({
+                        "label": "Bilinmiyor",
+                        "source_label": "Capacitor / Diode",
+                        "display_label": "Kondansatör / Diyot (belirsiz)",
+                        "candidate_labels": ["Kondansatör", "Diyot"],
+                        "candidate_confidences": {
+                            item["label"]: item["confidence"],
+                            other["label"]: other["confidence"],
+                        },
+                        "ambiguity_reason": "capacitor_diode_overlap",
+                        "needs_review": True,
+                        "verified": False,
+                    })
+                    consumed.add(other_index)
+                    item = uncertain
+                    break
+        merged.append(item)
+        if len(merged) >= max_results:
             break
-    return sorted(kept, key=lambda p: (p["bbox_xyxy_pixels"][1], p["bbox_xyxy_pixels"][0]))
+    return sorted(merged, key=lambda p: (p["bbox_xyxy_pixels"][1], p["bbox_xyxy_pixels"][0]))
 
 
 def detect_components(image_path, weights_path, confidence=0.22):
