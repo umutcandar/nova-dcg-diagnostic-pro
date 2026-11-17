@@ -64,6 +64,29 @@ class ONNXDetectorTests(unittest.TestCase):
             self.assertTrue(0<=y1<y2<=1200)
             self.assertTrue(x2-x1>=640)
 
+    def test_every_pixel_is_covered_even_on_4k_and_8k_photos(self):
+        for width,height in ((4096,3072),(7680,4320),(2048,1536),(2800,900),(1200,2400)):
+            tiles=model.candidate_tiles(width,height)
+            self.assertGreaterEqual(len(tiles),1)
+            self.assertLessEqual(len(tiles),9)
+            # Sample every 1/24th grid cell across the entire photograph.
+            for iy in range(25):
+                y=(iy+.5)*height/25
+                for ix in range(25):
+                    x=(ix+.5)*width/25
+                    self.assertTrue(any(x1<=x<x2 and y1<=y<y2
+                        for x1,y1,x2,y2 in tiles),
+                        msg=f"Uncovered pixel ({x:.0f},{y:.0f}) on {width}x{height}")
+
+    def test_adjacent_tiles_overlap_instead_of_leaving_resized_gaps(self):
+        tiles=model.candidate_tiles(4096,3072)
+        xs=sorted(set((x1,x2) for x1,_,x2,_ in tiles))
+        ys=sorted(set((y1,y2) for _,y1,_,y2 in tiles))
+        for axis in (xs,ys):
+            self.assertEqual(axis[0][0],0)
+            for prior,following in zip(axis,axis[1:]):
+                self.assertGreater(prior[1]-following[0],0)
+
     def test_tiled_inference_removes_same_class_duplicates_but_keeps_ambiguity(self):
         shared={"label":"Kondansatör","source_label":"capacitor"}
         first={**shared,"confidence":.8,"bbox_xyxy_pixels":[10,20,80,130]}
