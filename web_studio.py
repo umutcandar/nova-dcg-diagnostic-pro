@@ -35,7 +35,7 @@ Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 SECURITY_CSP = (
     "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
     "form-action 'none'; img-src 'self' data: blob:; "
-    "style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+    "style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
     "connect-src 'self'"
 )
 
@@ -170,6 +170,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_payload(200, {"status": "ok", "app": "nova-dcg-web"}, head=head)
         if self.require_auth():
             return
+        if path == "/web_review.js":
+            content = (ROOT / "web_review.js").read_text(encoding="utf-8")
+            return self.send_payload(200, content, "application/javascript", head=head)
         if path == "/":
             content = (ROOT / "web_studio.html").read_text(encoding="utf-8")
             return self.send_payload(200, content, "text/html", head=head)
