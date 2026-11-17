@@ -158,7 +158,12 @@ class BrowserAndRealInferenceTest(unittest.TestCase):
             timeout=30000,
         )
         self.assertIn("Teknisyen onayı",self.page.locator("#results").inner_text())
-        self.assertIn("Kondansatör",self.page.locator("#partType").input_value())
+        # The application selects the first unreviewed candidate by design.
+        # Select saved component 7 explicitly before asserting its Fluke guide.
+        self.page.locator("#results .item").nth(6).click()
+        self.assertEqual(self.page.locator("#partType").input_value(),"Kondansatör")
+        self.assertIn("Kapasitans",self.page.locator("#guide").inner_text())
+        self.assertTrue(self.page.locator("#confirmed").is_checked())
         self.assertFalse(self.errors, "JavaScript errors: "+repr(self.errors))
         self.page.unroute("**/analyze")
 
