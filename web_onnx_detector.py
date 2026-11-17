@@ -209,30 +209,46 @@ def decode_predictions(output, width, height, scale, pad_x, pad_y, confidence=0.
 
 
 def candidate_tiles(width, height):
-    """At most 9 overlapping detail crops; cover EVERY pixel of large PCB photos.
+    """Retain known-good detail crops, filling gaps without resizing them.
 
-    On 4K/8K photos a fixed 1024px 3-column grid silently leaves gaps.
-    Size tiles for three positions per axis with >=20% overlap, retaining
-    a fixed CPU inference budget on the small Render instance.
+    Original 3x3 anchor windows have demonstrated better per-class recall than
+    larger resized 3x3 windows. Preserve every anchor exactly, insert only
+    missing full-detail windows, and cap CPU passes to 25 on 8K images.
     """
     if width < 1 or height < 1 or max(width, height) <= 1024:
         return []
-    size = min(1024, max(640, round(max(width, height) * 0.58)))
-    # Three evenly spaced windows can only cover the full dimension with
-    # 20% overlap when tile >= total / (3 - 2*0.20) = total / 2.6.
-    tilew = min(width, max(size, math.ceil(width / 2.6)))
-    tileh = min(height, max(size, math.ceil(height / 2.6)))
+    original_size = min(1024, max(640, round(max(width, height) * 0.58)))
+    tilew, tileh = min(original_size, width), min(original_size, height)
 
-    def starts(total, tile):
-        remaining = max(0, total - tile)
-        return sorted(set((0, remaining // 2, remaining)))
+    def axis(total, tile):
+        remainder = max(0, total - tile)
+        anchors = sorted(set((0, remainder // 2, remainder)))
+        filled = [anchors[0]]
+        for target in anchors[1:]:
+            # Keep original anchors; add crops between them only if uncovered.
+            while target - filled[-1] > tile:
+                filled.append(filled[-1] + tile)
+            if target != filled[-1]:
+                filled.append(target)
+        return filled
 
-    result = [
+    starts_x, starts_y = axis(width, tilew), axis(height, tileh)
+    if len(starts_x) * len(starts_y) > 25:
+        # Extremely large source: bound total ONNX CPU work, but never leave
+        # unscanned strips. Use up to five overlapping windows per axis.
+        def bounded(total, tile):
+            tile = min(total, max(tile, math.ceil(total / 4.2)))
+            remaining = max(0, total - tile)
+            starts = sorted(set(round(remaining * i / 4) for i in range(5)))
+            return tile, starts
+        tilew, starts_x = bounded(width, tilew)
+        tileh, starts_y = bounded(height, tileh)
+
+    return [
         (x, y, min(width, x + tilew), min(height, y + tileh))
-        for y in starts(height, tileh)
-        for x in starts(width, tilew)
+        for y in starts_y for x in starts_x
+        if (x, y, min(width, x + tilew), min(height, y + tileh)) != (0, 0, width, height)
     ]
-    return [rect for rect in result if rect != (0, 0, width, height)]
 
 
 def merge_overlapping_detections(predictions, threshold=.50):
