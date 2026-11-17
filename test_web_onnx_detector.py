@@ -58,7 +58,7 @@ class ONNXDetectorTests(unittest.TestCase):
         self.assertEqual(model.candidate_tiles(640,480),[])
         crop_regions=model.candidate_tiles(1600,1200)
         self.assertGreaterEqual(len(crop_regions),4)
-        self.assertLessEqual(len(crop_regions),9)
+        self.assertLessEqual(len(crop_regions),25)
         for x1,y1,x2,y2 in crop_regions:
             self.assertTrue(0<=x1<x2<=1600)
             self.assertTrue(0<=y1<y2<=1200)
@@ -68,7 +68,7 @@ class ONNXDetectorTests(unittest.TestCase):
         for width,height in ((4096,3072),(7680,4320),(2048,1536),(2800,900),(1200,2400)):
             tiles=model.candidate_tiles(width,height)
             self.assertGreaterEqual(len(tiles),1)
-            self.assertLessEqual(len(tiles),9)
+            self.assertLessEqual(len(tiles),25)
             # Sample every 1/24th grid cell across the entire photograph.
             for iy in range(25):
                 y=(iy+.5)*height/25
@@ -77,6 +77,26 @@ class ONNXDetectorTests(unittest.TestCase):
                     self.assertTrue(any(x1<=x<x2 and y1<=y<y2
                         for x1,y1,x2,y2 in tiles),
                         msg=f"Uncovered pixel ({x:.0f},{y:.0f}) on {width}x{height}")
+
+    def test_original_3_by_3_crops_are_preserved_on_medium_photos(self):
+        width,height=1600,1200
+        size=min(1024,max(640,round(max(width,height)*.58)))
+        xs=sorted(set((0,(width-size)//2,width-size)))
+        ys=sorted(set((0,(height-size)//2,height-size)))
+        expected=[(x,y,x+size,y+size) for y in ys for x in xs]
+        self.assertEqual(model.candidate_tiles(width,height),expected)
+
+    def test_4k_expansion_preserves_old_anchor_boxes(self):
+        width,height=4096,3072
+        old_size=1024
+        xs=(0,(width-old_size)//2,width-old_size)
+        ys=(0,(height-old_size)//2,height-old_size)
+        tiles=set(model.candidate_tiles(width,height))
+        for y in ys:
+            for x in xs:
+                self.assertIn((x,y,x+old_size,y+old_size),tiles)
+        self.assertGreater(len(tiles),9)
+        self.assertLessEqual(len(tiles),25)
 
     def test_adjacent_tiles_overlap_instead_of_leaving_resized_gaps(self):
         tiles=model.candidate_tiles(4096,3072)
