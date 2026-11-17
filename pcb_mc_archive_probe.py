@@ -179,11 +179,26 @@ def inspect(api=API):
         "zip_member_probe":directory["state"],
         "zip_entries_count":len(entries),
         "first_fifteen_entries":entries[:15],
+        "component_image_count":len([
+            name for name in entries
+            if name.startswith("PCB_MC/images/PCB-MC-C/") and
+               name.lower().endswith((".png",".jpg",".jpeg"))
+        ]),
+        "component_image_examples":[
+            name for name in entries
+            if name.startswith("PCB_MC/images/PCB-MC-C/") and
+               name.lower().endswith((".png",".jpg",".jpeg"))
+        ][:40],
+        "component_directory_examples":[
+            name for name in entries
+            if name.startswith("PCB_MC/images/PCB-MC-C/") and
+               name.endswith("/")
+        ][:50],
         "pcb_mc_components_annotation_files":[
-            name for name in entries if "/annotations/PCB-MC-C/" in "/"+name and name.lower().endswith(".json")
+            name for name in entries if name.startswith("PCB_MC/annotations/PCB-MC-C/") and name.lower().endswith(".json")
         ][:100],
         "pcb_mc_split_files":[
-            name for name in entries if "/splits/" in "/"+name and name.lower().endswith(".json")
+            name for name in entries if name.startswith("PCB_MC/splits/") and name.lower().endswith(".json")
         ][:100],
         "verdict":"metadata_verified_not_training" if not entries else "archive_layout_discovered_not_training",
         "note":"Range inspect does NOT verify the full 3.77GB archive MD5; verify after full download before training.",
