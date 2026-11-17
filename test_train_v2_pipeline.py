@@ -15,7 +15,7 @@ class TrainingAuditTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def make_board(self, num, verified=True, label="Direnç", board_id=None):
+    def make_board(self, num, verified=True, label="Direnç", board_id=None, complete=True):
         folder = self.base / f"board{num}"
         folder.mkdir(parents=True, exist_ok=True)
         image = folder / "board.png"
@@ -24,6 +24,7 @@ class TrainingAuditTests(unittest.TestCase):
             "image": "board.png",
             "board_id": board_id or f"device-{num}",
             "technician_verified": verified,
+            "annotation_complete": complete,
             "coordinate_system": "xyxy_normalized",
             "regions": [{"label":label, "bbox_xyxy_normalized":[.1,.1,.6,.7]}],
         }
@@ -42,6 +43,12 @@ class TrainingAuditTests(unittest.TestCase):
         for i in range(3):
             self.make_board(i, verified=(i!=2))
         with self.assertRaisesRegex(ValueError, "Teknisyen onayı"):
+            audit_annotations(self.base)
+
+    def test_incomplete_component_annotations_do_not_reach_training(self):
+        for i in range(3):
+            self.make_board(i, complete=(i != 1))
+        with self.assertRaisesRegex(ValueError, "Tüm görünür"):
             audit_annotations(self.base)
 
     def test_reject_missing_board_diversity(self):
