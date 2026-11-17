@@ -57,6 +57,7 @@ jobs:
           test "$(find /tmp/nova-test-photos/dataset/images/val -type f | wc -l)" -ge 10
       - name: Run actual Chromium UI tests and REAL authenticated ONNX API
         run: |
+          set -o pipefail
           export NOVA_PUBLIC_PCB_TEST_IMAGE="$(find /tmp/nova-test-photos/dataset/images/val \
             -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.jpeg' \) | LC_ALL=C sort | head -n 1)"
           test -n "$NOVA_PUBLIC_PCB_TEST_IMAGE"
