@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'web_studio.py'
+      - 'web_onnx_detector.py'
+      - 'test_web_onnx_detector.py'
       - 'web_studio.html'
       - 'web_review.js'
       - 'web_component_knowledge.js'
@@ -14,6 +16,8 @@ on:
   pull_request:
     paths:
       - 'web_studio.py'
+      - 'web_onnx_detector.py'
+      - 'test_web_onnx_detector.py'
       - 'web_studio.html'
       - 'web_review.js'
       - 'web_component_knowledge.js'
@@ -33,9 +37,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install small test dependency
-        run: python -m pip install "Pillow>=10,<13"
+        run: python -m pip install "Pillow>=10,<13" "numpy>=1.26,<3"
       - name: Check Python syntax
-        run: python -m py_compile web_studio.py test_web_studio.py test_web_security.py
+        run: python -m py_compile web_studio.py web_onnx_detector.py test_web_studio.py test_web_security.py
       - name: Check inline browser JavaScript syntax
         run: |
           python - <<'PY'
@@ -70,4 +74,4 @@ jobs:
           print('Web labels match NOVA 14-class training schema')
           PY
       - name: HTTP integration tests without model or internet
-        run: python -m unittest -v test_web_studio test_web_security
+        run: python -m unittest -v test_web_studio test_web_security test_web_onnx_detector
