@@ -241,8 +241,19 @@ class Handler(BaseHTTPRequestHandler):
                 image.save(path, format="PNG")
                 image.close()
                 try:
-                    from web_onnx_detector import automatic_detect, OnnxDetectorError
-                    detections = automatic_detect(path)
+                    from web_onnx_detector import automatic_detect, detailed_detect, OnnxDetectorError
+                    use_detail = (os.environ.get("NOVA_DETAILED_SCAN", "1") == "1"
+                                  and max(width, height) > 1024)
+                    scan_mode = "tiled_detail" if use_detail else "standard"
+                    if use_detail:
+                        try:
+                            detections = detailed_detect(path)
+                        except OnnxDetectorError:
+                            LOG.warning("Detailed scan failed; reverting to standard ONNX inference")
+                            detections = automatic_detect(path)
+                            scan_mode = "standard_fallback"
+                    else:
+                        detections = automatic_detect(path)
                 except OnnxDetectorError as exc:
                     LOG.warning("PCB detector unavailable: %s", type(exc).__name__)
                     return self.send_payload(503, {
@@ -257,6 +268,7 @@ class Handler(BaseHTTPRequestHandler):
                     "model_predictions_unverified": True,
                     "model_name": "pinned_21_class_onnx",
                     "model_class_count": 21,
+                    "inference_mode": scan_mode,
                 })
         except (OSError, ValueError):
             LOG.exception("PCB image processing failed")
