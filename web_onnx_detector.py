@@ -229,5 +229,6 @@ def warm_up():
     """Optional non-blocking startup download; does not load model with pickle."""
     try:
         ensure_weights()
+        LOG.info("Verified 21-class ONNX model downloaded, SHA256 prefix=%s", EXPECTED_SHA256[:12])
     except OnnxDetectorError:
-        pass
+        LOG.warning("21-class ONNX model warm-up failed; manual review remains available")
