@@ -226,8 +226,8 @@ def candidate_tiles(width, height):
         filled = [anchors[0]]
         for target in anchors[1:]:
             # Keep original anchors; add crops between them only if uncovered.
-            while target - filled[-1] > tile:
-                filled.append(filled[-1] + tile)
+            while target - filled[-1] >= tile:
+                filled.append(filled[-1] + max(1, round(tile * .90)))
             if target != filled[-1]:
                 filled.append(target)
         return filled
