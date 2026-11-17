@@ -50,3 +50,13 @@ GitHub Actions'taki `web-studio-smoke.yml`, kimlik doğrulamayı, kutu koordinat
 - **Model hazır değilse** /model-status durumunu kontrol et, analiz hatasından sonra yeniden tara veya manuel işaretlemeye devam et. Kullanıcı fotoğrafları Hugging Face'e gönderilmez; model dosyası indirilir, görüntü Render süreci içinde geçici olarak işlenir.
 
 Ölçüm ve işaretleme referansları: [Fluke diyot ölçümü](https://www.fluke.com/en-us/learn/blog/digital-multimeters/how-to-test-diodes), [Fluke direnç ölçümü](https://www.fluke.com/en-us/learn/blog/digital-multimeters/how-to-measure-resistance), [Panasonic direnç işaretleri](https://industrial.panasonic.com/sa/ds/ss/technical/b28), [Vishay renk kodu](https://www.vishay.com/docs/20143/colorcod.pdf).
+
+## Yanlış komponenti düzeltme ve aynı fotoğrafta hatırlama
+
+1. Fotoğrafı yükle ve yanlışı tespit eden kareye tıkla. Örneğin model metal gövdeli bir parçayı **Diyot** diye işaretliyorsa, büyük/dikey diyot kutusunda ayrıca **Şüpheli sınıflandırma** uyarısı görünür.
+2. **Kondansatör olarak doğrula** gibi önerilen bir düğmeye bas veya bileşen türü açılır menüsünden doğru etiketi seçip **Parçayı doğruladım; bu fotoğrafa kaydet** kutusunu işaretle.
+3. Onaylı kutu **yeşile** dönüşür. Fotoğrafın SHA-256 kimliğiyle ilişkilendirilen **sadece doğrulanmış etiket ve normalize edilmiş kutu koordinatları** aynı tarayıcının yerel depolamasına kaydedilir; fotoğraf, parça üstündeki yazı ve Fluke ölçümleri bu işlemle kalıcı depolamaya alınmaz.
+4. **Aynı özgün fotoğraf dosyasını** yeniden yüklediğinde model sonucu teknisyen onayıyla karşılaştırılır; örtüşen tek bir kutuda önceki onaylı etiket gösterilir. Bu işlem yalnız aynı dosya kimliğinde çalışır. Başka fotoğraf, kesme/döndürme veya dosyayı yeniden kaydetme farklı kimlik üretir ve otomatik düzeltme uygulanmaz.
+5. Sağdaki **Bu fotoğrafın düzeltmelerini sıfırla** seçeneği ilgili tarayıcı kaydını siler. **Düzeltme geri bildirimini indir** ile JSON geri bildirim raporu alabilirsin. Bu **kısmi** rapor doğrudan eğitim veri kümesi değildir; doğrulanmış tam etiketler için ayrıca **Eğitim etiketi JSON indir** kullanılmalıdır.
+
+**Sınır:** Bu düzeltme mekanizması ONNX ağırlıklarını kendiliğinden yeniden eğitmez veya tüm yeni kartlarda doğruluk garantisi vermez. Modelin kendisini geliştirmek için her yeni karta ait tam etiketli fotoğraflardan oluşan, bağımsız doğrulama setiyle test edilmiş bir eğitim çalışması gerekir. 21 sınıflı modelin birinci tahmininin yanında ikinci/üçüncü sınıf skorlarını göstermek de sadece teknisyen incelemesini kolaylaştırır; skorlar kalibre edilmiş doğruluk olasılıkları değildir.
