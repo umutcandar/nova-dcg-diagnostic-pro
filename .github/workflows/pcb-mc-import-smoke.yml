@@ -5,12 +5,16 @@ on:
       - 'pcb_mc_import.py'
       - 'pcb_mc_train.py'
       - 'test_pcb_mc_import.py'
+      - 'pcb_mc_download_fold.py'
+      - 'test_pcb_mc_download_fold.py'
       - '.github/workflows/pcb-mc-import-smoke.yml'
   pull_request:
     paths:
       - 'pcb_mc_import.py'
       - 'pcb_mc_train.py'
       - 'test_pcb_mc_import.py'
+      - 'pcb_mc_download_fold.py'
+      - 'test_pcb_mc_download_fold.py'
       - '.github/workflows/pcb-mc-import-smoke.yml'
   workflow_dispatch:
 jobs:
@@ -27,6 +31,6 @@ jobs:
       - name: Install data validation dependencies only
         run: python -m pip install "Pillow>=10,<13" "PyYAML>=6,<7"
       - name: Compile import and training modules
-        run: python -m py_compile pcb_mc_import.py pcb_mc_train.py test_pcb_mc_import.py
+        run: python -m py_compile pcb_mc_import.py pcb_mc_train.py pcb_mc_download_fold.py test_pcb_mc_import.py test_pcb_mc_download_fold.py
       - name: Verify synthetic official-fold conversion and labels
-        run: python -m unittest -v test_pcb_mc_import
+        run: python -m unittest -v test_pcb_mc_import test_pcb_mc_download_fold
