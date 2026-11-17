@@ -35,6 +35,51 @@ düğme yüzeyleri olarak çizilir.
 
 **Sınırlar:** Gerçek model karttaki her parçayı bulamayabilir. Fotoğraftan güvenilir prob pinleri, nominal değerler veya kesin elektriksel arıza belirlenemez. Fluke okumaları manuel girilir.
 
+## Gerçek etiketli kartlarla algılama kalitesi testi (V2)
+
+**Durum:** Çakışan kondansatör/diyot tahminleri tek bir **belirsiz** aday olarak gösterilir; bileşen türü onaylanmadan Fluke modu önerilmez. Bu kuralın başarısı gerçek kartlarda henüz ölçülmedi. Modelin güven puanı doğruluk oranı değildir.
+
+Etiketleme ekranında her gerçek PCB için aynı `board_id` kullanılmalı. Bütün görünür bileşenler çizildikten sonra hem **etiketleri tek tek kontrol ettim** hem de **tüm görünür parçaları işaretledim** kutuları seçilmeli. Eksik etiketli fotoğraflardan yanlış pozitif oranı hesaplanamaz. Test kartları eğitimde veya eşik ayarında kullanılmamalıdır.
+
+Bağımsız fiziksel kart kimliklerini (satır başına bir kimlik) `heldout_boards.txt` içine yazın. Örnek klasör:
+
+```text
+pcb_annotations/
+  kart-a/
+    kart.png
+    etiket.json
+  kart-b/
+    kart.png
+    etiket.json
+heldout_boards.txt
+```
+
+Gerçek eğitilmiş model ve gerçek kart fotoğrafları mevcutsa:
+
+```bash
+python benchmark_detection.py --annotations pcb_annotations \
+  --holdout-boards heldout_boards.txt \
+  --weights models/yolov8s_pcb_best.pt \
+  --output pcb_holdout_report.json
+```
+
+Önceden kaydedilmiş gerçek tahminlerle *model çalıştırmadan* test etmek için, her `etiket.json` dosyasına karşılık tahmin klasöründe aynı alt dizinde `etiket.predictions.json` dosyası bulunmalı. İçerik `[{"label":"Diyot","confidence":0.81,"bbox_xyxy_pixels":[10,20,40,60]}]` gibi bir listedir:
+
+```bash
+python benchmark_detection.py --annotations pcb_annotations \
+  --holdout-boards heldout_boards.txt \
+  --predictions-dir saved_predictions \
+  --output pcb_holdout_report.json
+```
+
+Raporda `false_positive_candidates`, `missed_components`, `candidate_precision`, `candidate_recall`, `class_precision`, `class_recall`, `capacitor_as_diode`, `diode_as_capacitor` ve sınıf karmaşıklığı farklı güven eşiklerinde ayrı ayrı raporlanır. `candidate_precision`, gerçek etiketlerle konum eşleştirme başarısıdır; elektronik sağlamlık veya tüm kartlarda model doğruluğu değildir. Yanlış pozitifleri azaltmak için **0.22 / 0.35 / 0.45 / 0.55 / 0.65** eşikleri karşılaştırılır; yüksek eşik bazı gerçek komponentleri de kaçırabilir. **Gerçek etiketli bağımsız testler olmadan eşik otomatik yükseltilmez.**
+
+```bash
+python -m unittest -v test_benchmark_detection test_multiscale_detection
+```
+
+---
+
 ## V2 eğitim altyapısı
 
 Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
