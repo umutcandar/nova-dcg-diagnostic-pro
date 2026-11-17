@@ -69,6 +69,15 @@ class WebStudioTests(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(body, b"")
 
+    def test_review_script_is_private_and_available(self):
+        code, _, _ = self.request("GET", "/web_review.js", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, headers = self.request("GET", "/web_review.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b"trainingAnnotation", body)
+        self.assertIn("application/javascript", headers["Content-Type"])
+        self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
+
     def test_invalid_data_url_does_not_call_model(self):
         code, body, _ = self.request("POST", "/analyze",
                                      body=json.dumps({"image": "not-an-image"}),
