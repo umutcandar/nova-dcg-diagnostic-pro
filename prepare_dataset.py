@@ -58,7 +58,29 @@ def prepare(source_dir, output_dir, seed=42):
         key=hashlib.sha256(str(annotation).encode()).hexdigest()[:12]
         name=f"{annotation.stem}_{key}"
         destination=out/"images"/split/(name+image.suffix.lower())
-        shutil.copy2(image,destination)
+        # Web labels use the browser-visible (EXIF-transposed) coordinates.
+        # Save an orientation-normalized JPG so training boxes cannot rotate
+        # away from the pictured components. Legacy annotations are untouched.
+        metadata = json.loads(annotation.read_text(encoding="utf-8"))
+        orientation = metadata.get("image_coordinate_space")
+        if orientation == "exif_transposed":
+            if metadata.get("technician_verified") is not True:
+                raise ValueError(f"Web etiketi teknisyen onayı olmadan hazırlanamaz: {annotation}")
+            from PIL import Image, ImageOps
+            with Image.open(image) as original:
+                normalized = ImageOps.exif_transpose(original)
+                expected = (metadata.get("image_width"), metadata.get("image_height"))
+                if not all(type(v) is int and v > 0 for v in expected) or normalized.size != expected:
+                    raise ValueError(
+                        f"Fotoğraf yönü veya boyutu etiket ile uyuşmuyor: {annotation}. "
+                        f"Beklenen {expected}, okunan {normalized.size}"
+                    )
+                destination = destination.with_suffix(".jpg")
+                normalized.convert("RGB").save(destination, format="JPEG", quality=94)
+        elif orientation is None:
+            shutil.copy2(image, destination)
+        else:
+            raise ValueError(f"Bilinmeyen görüntü koordinat sistemi: {annotation}")
         lines=[]
         for cls,cx,cy,w,h in labels:
             lines.append(f"{cls} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}")

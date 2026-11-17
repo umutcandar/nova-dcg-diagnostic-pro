@@ -1,0 +1,32 @@
+name: Inspect one public PCB-MC corrupted label via ZIP64 range
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/pcb-mc-label-debug.yml"
+      - "pcb_mc_remote_label_debug.py"
+jobs:
+  label-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install label normalization test dependency
+        run: python -m pip install "Pillow>=10,<13"
+      - name: Read exact official public label from ZIP64 ranges
+        run: |
+          python pcb_mc_remote_label_debug.py \
+            --label pcb163rec1_jpg.rf.e09413b54fb81bd55aa9f7db2f5001b9.txt \
+            --out artifacts/suspicious_label.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pcb-mc-official-polygon-label-audit
+          path: artifacts/suspicious_label.json
+          if-no-files-found: warn
+          retention-days: 10

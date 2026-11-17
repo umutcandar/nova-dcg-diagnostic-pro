@@ -4,6 +4,8 @@ All boxes are unverified visual hypotheses, not component health or probe advice
 The class mapping is checked against the loaded, trained checkpoint.
 """
 import math
+import os
+from functools import lru_cache
 from pathlib import Path
 
 from dataset import CLASSES
@@ -58,6 +60,12 @@ def deduplicate_detections(predictions, threshold=0.40, max_results=250):
     return sorted(kept, key=lambda p: (p["bbox_xyxy_pixels"][1], p["bbox_xyxy_pixels"][0]))
 
 
+@lru_cache(maxsize=2)
+def _model_for(weights_path):
+    from ultralytics import YOLO
+    return YOLO(str(weights_path))
+
+
 def detect_components(image_path, weights_path, confidence=0.22):
     """Predict on the whole photo and four overlapping crops.
 
@@ -79,7 +87,7 @@ def detect_components(image_path, weights_path, confidence=0.22):
     except ImportError as exc:
         raise RuntimeError("Install optional dependency: python -m pip install ultralytics") from exc
 
-    model = YOLO(str(weights_path))
+    model = _model_for(str(weights_path.resolve()))
     names = model.names
     class_names = [names[i] for i in range(len(names))] if isinstance(names, dict) else list(names)
     if class_names == CLASSES:
@@ -94,7 +102,11 @@ def detect_components(image_path, weights_path, confidence=0.22):
         board = ImageOps.exif_transpose(opened).convert("RGB")
     width, height = board.size
     predictions = []
-    for left, top, right, bottom, imgsz in candidate_regions(width, height):
+    # Hosted free instances are CPU / memory limited. Use one conservative pass
+    # instead of five tile passes; local desktop retains full multiscale mode.
+    low_resource = os.environ.get("NOVA_WEB_LOW_RESOURCE") == "1"
+    regions = [(0, 0, width, height, 640)] if low_resource else candidate_regions(width, height)
+    for left, top, right, bottom, imgsz in regions:
         region = board.crop((left, top, right, bottom))
         result = model.predict(
             source=region,

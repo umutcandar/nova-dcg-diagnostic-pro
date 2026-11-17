@@ -4,3 +4,6 @@ reportlab>=4,<5
 ultralytics>=8.3,<9
 # Native Mac Finder/Windows/Linux file drag and drop for the V2 workspace.
 tkinterdnd2>=0.4.3,<1
+
+# Required to validate external public training class manifests.
+PyYAML>=6,<7

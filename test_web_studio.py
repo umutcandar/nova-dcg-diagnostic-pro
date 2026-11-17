@@ -1,0 +1,245 @@
+"""Integration tests for the NOVA DCG private web workbench (no model download)."""
+import base64
+from http.client import HTTPConnection
+from io import BytesIO
+import json
+import os
+from threading import Thread
+import unittest
+from unittest.mock import patch
+
+from PIL import Image
+import web_studio
+
+
+class WebStudioTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.original_user, cls.original_password = web_studio.AUTH_USER, web_studio.AUTH_PASSWORD
+        web_studio.AUTH_USER = "web-test"
+        web_studio.AUTH_PASSWORD = "temporary-unittest-credential"
+        cls.server = web_studio.ThreadingHTTPServer(("127.0.0.1", 0), web_studio.Handler)
+        cls.thread = Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join(timeout=3)
+        web_studio.AUTH_USER, web_studio.AUTH_PASSWORD = cls.original_user, cls.original_password
+
+    def request(self, method, path, body=None, headers=None, authorized=True):
+        headers = dict(headers or {})
+        if authorized:
+            credentials = base64.b64encode(b"web-test:temporary-unittest-credential").decode()
+            headers["Authorization"] = "Basic " + credentials
+        connection = HTTPConnection("127.0.0.1", self.server.server_port, timeout=4)
+        connection.request(method, path, body=body, headers=headers)
+        reply = connection.getresponse()
+        data = reply.read()
+        status, all_headers = reply.status, dict(reply.getheaders())
+        connection.close()
+        return status, data, all_headers
+
+    @staticmethod
+    def photo():
+        with BytesIO() as output:
+            Image.new("RGB", (64, 40), (115, 85, 70)).save(output, format="PNG")
+            return "data:image/png;base64," + base64.b64encode(output.getvalue()).decode()
+
+    def test_health_requires_no_password(self):
+        code, body, _ = self.request("GET", "/healthz", authorized=False)
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["status"], "ok")
+
+    def test_private_page_rejects_anonymous_get_and_head(self):
+        for method in ("GET", "HEAD"):
+            with self.subTest(method=method):
+                code, _, headers = self.request(method, "/", authorized=False)
+                self.assertEqual(code, 401)
+                self.assertIn("WWW-Authenticate", headers)
+
+    def test_page_and_query_parameters_work_after_auth(self):
+        code, body, headers = self.request("GET", "/?utm_source=check")
+        self.assertEqual(code, 200)
+        self.assertIn(b"PCB STUDIO", body)
+        self.assertIn(b"bbox_xyxy_pixels", body)
+        self.assertIn("no-store", headers["Cache-Control"])
+        code, body, _ = self.request("HEAD", "/?utm_source=check")
+        self.assertEqual(code, 200)
+        self.assertEqual(body, b"")
+
+    def test_model_status_is_private(self):
+        code, _, _ = self.request("GET", "/model-status", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, _ = self.request("GET", "/model-status")
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["classes"], 21)
+
+    def test_review_script_is_private_and_available(self):
+        code, _, _ = self.request("GET", "/web_review.js", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, headers = self.request("GET", "/web_review.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b"trainingAnnotation", body)
+        self.assertIn("application/javascript", headers["Content-Type"])
+        self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
+
+    def test_knowledge_script_is_authenticated(self):
+        code, _, _ = self.request("GET", "/web_component_knowledge.js", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, headers = self.request("GET", "/web_component_knowledge.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b"NovaKnowledge", body)
+        self.assertIn("application/javascript", headers["Content-Type"])
+
+    def test_technician_corrections_script_is_private(self):
+        code, _, _ = self.request("GET", "/web_corrections.js", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, headers = self.request("GET", "/web_corrections.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b"NovaCorrections", body)
+        self.assertIn("application/javascript", headers["Content-Type"])
+
+    def test_large_photo_uses_tiled_onnx_results(self):
+        with BytesIO() as out:
+            Image.new("RGB", (1250, 800), (25, 90, 40)).save(out, format="PNG")
+            image = "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
+        sample = {"label":"Kondansatör","source_label":"capacitor",
+                  "bbox_xyxy_pixels":[100, 100, 320, 480], "confidence":.90}
+        with patch.dict(os.environ, {"NOVA_DETAILED_SCAN":"1"}):
+            with patch("web_onnx_detector.detailed_detect", return_value=[sample]) as detailed:
+                with patch("web_onnx_detector.automatic_detect", return_value=[]) as fast:
+                    code, body, _ = self.request(
+                        "POST", "/analyze", body=json.dumps({"image":image}),
+                        headers={"Content-Type":"application/json"})
+        self.assertEqual(code, 200)
+        result = json.loads(body)
+        self.assertEqual(result["inference_mode"],"tiled_detail")
+        self.assertEqual(result["detections"][0]["label"],"Kondansatör")
+        detailed.assert_called_once()
+        fast.assert_not_called()
+
+    def test_tiled_onnx_failure_uses_standard_fallback(self):
+        from web_onnx_detector import OnnxDetectorError
+        with BytesIO() as out:
+            Image.new("RGB", (1250, 800), (25, 90, 40)).save(out, format="PNG")
+            image = "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
+        with patch.dict(os.environ, {"NOVA_DETAILED_SCAN":"1"}):
+            with patch("web_onnx_detector.detailed_detect", side_effect=OnnxDetectorError("test")):
+                with patch("web_onnx_detector.automatic_detect", return_value=[]) as fast:
+                    code, body, _ = self.request(
+                        "POST", "/analyze", body=json.dumps({"image":image}),
+                        headers={"Content-Type":"application/json"})
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["inference_mode"],"standard_fallback")
+        fast.assert_called_once()
+
+    def test_invalid_data_url_does_not_call_model(self):
+        code, body, _ = self.request("POST", "/analyze",
+                                     body=json.dumps({"image": "not-an-image"}),
+                                     headers={"Content-Type": "application/json"})
+        self.assertEqual(code, 400)
+        self.assertIn("error", json.loads(body))
+
+    def test_cross_origin_post_is_denied(self):
+        code, _, _ = self.request("POST", "/analyze",
+                                  body="{}",
+                                  headers={"Content-Type": "application/json",
+                                           "Origin": "https://other.example"})
+        self.assertEqual(code, 403)
+
+    def test_similar_diode_and_capacitor_scores_require_review_without_relabeling(self):
+        output = web_studio.normalize_detections([{
+            "label": "Diyot",
+            "source_label": "diode",
+            "bbox_xyxy_pixels": [10, 10, 55, 95],
+            "confidence": .47,
+            "alternatives": [
+                {"label": "Diyot", "source_label": "diode", "confidence": .47},
+                {"label": "Kondansatör", "source_label": "capacitor", "confidence": .37},
+            ],
+        }], 120, 130)
+        self.assertEqual(output[0]["label"], "Diyot")
+        self.assertTrue(output[0]["review_required"])
+        self.assertIn("skorları yakın", output[0]["review_note"])
+        self.assertFalse(output[0]["verified"])
+
+    def test_overlap_conflict_marks_both_visual_guesses_for_manual_review(self):
+        example = [
+            {"label":"Diyot", "bbox_xyxy_pixels":[10,10,40,80], "confidence":.7},
+            {"label":"Kondansatör", "bbox_xyxy_pixels":[11,11,41,81], "confidence":.6},
+            {"label":"Direnç", "bbox_xyxy_pixels":[70,70,110,110], "confidence":.9}
+        ]
+        result=web_studio.normalize_detections(example,120,120)
+        self.assertEqual([x["label"] for x in result],["Diyot","Kondansatör","Direnç"])
+        self.assertTrue(result[0]["review_required"])
+        self.assertTrue(result[1]["review_required"])
+        self.assertFalse(result[2]["review_required"])
+        self.assertIn("çakışan",result[0]["review_note"])
+
+    def test_distant_diode_and_capacitor_are_not_marked_as_conflict(self):
+        items=[
+            {"label":"Diyot", "bbox_xyxy_pixels":[1,1,15,15], "confidence":.9},
+            {"label":"Kondansatör", "bbox_xyxy_pixels":[90,90,110,110], "confidence":.8},
+        ]
+        out=web_studio.normalize_detections(items,120,120)
+        self.assertFalse(any(x["review_required"] for x in out))
+
+    def test_real_png_and_mock_model_return_pixel_boxes(self):
+        example = {"label": "Direnç", "source_label": "Resistor",
+                   "bbox_xyxy_pixels": [3, 5, 21, 25], "confidence": 0.87}
+        with patch("web_onnx_detector.automatic_detect", return_value=[example]) as fake:
+            code, body, _ = self.request(
+                "POST", "/analyze",
+                body=json.dumps({"image": self.photo()}),
+                headers={"Content-Type": "application/json"},
+            )
+        self.assertEqual(code, 200)
+        payload = json.loads(body)
+        self.assertEqual(payload["image_width"], 64)
+        self.assertEqual(payload["image_height"], 40)
+        self.assertEqual(payload["detections"][0]["bbox_xyxy_pixels"], [3., 5., 21., 25.])
+        self.assertEqual(payload["detections"][0]["label"], "Direnç")
+        self.assertFalse(payload["detections"][0]["verified"])
+        fake.assert_called_once()
+
+    def test_photo_api_preserves_safe_alternative_classes(self):
+        item = {
+            "label":"Diyot",
+            "source_label":"diode",
+            "bbox_xyxy_pixels":[1,2,30,40],
+            "confidence":.47,
+            "alternatives":[
+                {"label":"Diyot","source_label":"diode","confidence":.47},
+                {"label":"Kondansatör","source_label":"capacitor","confidence":.36},
+                {"label":"Bilinmiyor","confidence":float("nan")},
+            ]
+        }
+        result=web_studio.normalize_detections([item],64,64)[0]
+        self.assertEqual(len(result["alternatives"]),2)
+        self.assertEqual(result["alternatives"][1]["label"],"Kondansatör")
+        self.assertEqual(result["confidence"],.47)
+
+    def test_box_normalization_rejects_invalid_coordinates(self):
+        cases = [
+            {"label": "Bad", "bbox_xyxy_pixels": [0, 0, float("nan"), 8]},
+            {"label": "Bad", "bbox_xyxy_pixels": [5, 6, 2, 3]},
+            {"label": "Bad", "bbox": [1, 1, 2, 2]},
+        ]
+        self.assertEqual(web_studio.normalize_detections(cases, 100, 100), [])
+
+    def test_busy_server_returns_429_not_false_result(self):
+        self.assertTrue(web_studio.INFERENCE_SLOT.acquire(blocking=False))
+        try:
+            code, data, _ = self.request("POST", "/analyze",
+                                         body="{}", headers={"Content-Type": "application/json"})
+            self.assertEqual(code, 429)
+            self.assertIn("error", json.loads(data))
+        finally:
+            web_studio.INFERENCE_SLOT.release()
+
+
+if __name__ == "__main__":
+    unittest.main()

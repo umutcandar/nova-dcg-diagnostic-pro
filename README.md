@@ -1,3 +1,36 @@
+# NOVA DCG — Güncel web PCB tanıma (17 Kasım 2026)
+
+**Canlı özel web:** https://nova-dcg-diagnostic-pro.onrender.com/
+
+- Üretimdeki model: SHA256 doğrulamalı 21-sınıf ONNX; büyük fotoğraflarda
+  boşluk bırakmayan 9–25 yüksek detaylı tarama ve standart taramaya geri dönüş.
+- Gerçek 13 resimli karşılaştırmada güncel detaylı tarama **100/169 (%59,17)**
+  konum+sınıf eşleşmesi buldu; 36-epoch deneysel 10 sınıflı aday aynı
+  kuralla **37/169 (%21,89)** yaptı. Bu rakamlar küçük keşif testidir,
+  saha doğruluğu kanıtı değildir.
+- Web'de 28 teknisyen etiketi yer alır, ancak mevcut otomatik dedektör
+  **21 sınıf** tanır. Kullanıcı onaylı parça düzeltmeleri yalnız aynı
+  fotoğrafa bağlı tarayıcı kaydıdır, ONNX'i kendiliğinden eğitmez.
+- Teknik eğitim kanıtları ve lisans/veri kısıtları:
+  [PCB_MODEL_TRAINING_EVIDENCE.md](PCB_MODEL_TRAINING_EVIDENCE.md).
+- **23 sınıflı resmî PCB-MC-C eğitim hattı gerçekten çalıştırıldı**:
+  3 turluk ilk denemede 492 eğitim ve 123 resmî kart bazlı doğrulama
+  fotoğrafı kullanıldı. mAP50 %2,54 ve recall %3,36; bu araştırma
+  ağırlığı canlı modele geçirilmedi ve teknik serviste güvenilir değildir.
+- Veri 23 sınıf arasında dengesizdir: Zener için yalnız 9 eğitim / 4
+  doğrulama etiketi var. Yeni farklı kartlardan doğrulanmış görseller
+  toplanmadan yalnız epoch artırmak bu sorunu çözdüğünü kanıtlamaz.
+- Saha tarafı: 4K fotoğraf ayrıntısını koruyan, boyut kontrollü JPEG
+  aktarımı ve diyot/kondansatör çakışmasını işaretleyen teknisyen uyarıları
+  eklendi; önceki mobil/tarayıcı 1600px küçültme kaldırıldı.
+- Gerçek 23-sınıf deney ve model kaynak QA raporu:
+  [23 sınıf eğitimi](https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44143570427)
+  ve [sınıf bazlı yayın kararı](https://github.com/umutcandar/nova-dcg-diagnostic-pro/actions/runs/44146357359).
+- Gözle görülen etiketleri bilmek, parçanın **nominal elektriksel değerini**
+  veya arızasını kesin biçimde fotoğraftan belirlemek anlamına gelmez.
+
+---
+
 # NOVA DCG Diagnostic Studio V2
 
 **Varsayılan uygulama:** `python gui.py` artık koyu temalı fotoğraf odaklı V2 çalışma alanını açar. Önceki `gui.py` servis sınıfı uyumluluk için korunmuştur.
@@ -37,7 +70,7 @@ düğme yüzeyleri olarak çizilir.
 
 ## V2 eğitim altyapısı
 
-Mevcut eğitim taksonomisi 14 sınıfa genişletildi; eski sınıf ID'leri korunur. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
+Web çalışma alanındaki etiket taksonomisi 28 sınıftır; canlı ONNX modeli 21 sınıftır. Eski V2 iş akışındaki 14 sınıf bilgisi tarihsel kalmıştır. Etiketleme ekranında her fiziksel karta sabit `board_id` verilmeli ve teknisyen etiketleri doğrulamalı.
 
 Veri denetimi (model eğitmez):
 
@@ -51,7 +84,7 @@ Yerel M1 eğitimi (doğrulanmış etiketli veri gerektiğinden uzun sürebilir):
 python train_v2_pipeline.py /path/to/annotations /path/to/output --base-model models/yolov8s_pcb_best.pt --epochs 70 --imgsz 960 --batch 4 --device mps
 ```
 
-Pipeline farklı fiziksel kartları train / validation / test arasında ayırır; eğitimden sonra görülmemiş test kartları için metrikler kaydedilir. Test metrikleri ve 14 sınıf eşleşmesi doğrulanırsa eğitilmiş `best.pt` yerel `~/.nova_dcg/trained_model.json` kayıt dosyasında SHA256 değeriyle kaydedilir; **sonraki açılışta otomatik seçilir**. Kayıt veya dosya sonradan değiştirilirse güvenlik için açılmaz. **Şu anda yeni V2 modelinin eğitimi tamamlanmadı; gerçek ve doğrulanmış PCB fotoğraflarına ihtiyaç var.**
+Pipeline farklı fiziksel kartları train / validation / test arasında ayırır; eğitimden sonra görülmemiş test kartları için metrikler kaydedilir. Test metrikleri ve güncel veri kümesinin sınıf sırası doğrulanırsa eğitilmiş `best.pt` yerel `~/.nova_dcg/trained_model.json` kayıt dosyasında SHA256 değeriyle kaydedilir; **sonraki açılışta otomatik seçilir**. Kayıt veya dosya sonradan değiştirilirse güvenlik için açılmaz. **Şu anda yeni V2 modelinin eğitimi tamamlanmadı; gerçek ve doğrulanmış PCB fotoğraflarına ihtiyaç var.**
 
 ---
 # NOVA DCG Diagnostic Pro — otomatik fotoğraf akışı (V1.5)

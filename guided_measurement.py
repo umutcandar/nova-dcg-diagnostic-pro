@@ -21,6 +21,7 @@ MODES = {
     "Header": "Direnç (Ω)",
     "Kristal": "Datasheet gerekli",
     "Test noktası": "Devre şeması gerekli",
+    "Trimpot": "Direnç (Ω)",
 }
 
 def measurement_plan(detections):
