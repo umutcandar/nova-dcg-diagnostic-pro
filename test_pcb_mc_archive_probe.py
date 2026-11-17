@@ -36,18 +36,18 @@ class PCBMCArchiveProbeTests(unittest.TestCase):
 
     def test_zip64_locator_can_describe_the_same_small_synthetic_archive(self):
         zipped=self.make_zip()
-        eocd=zipped.rfind(b"PK\\x05\\x06")
+        eocd=zipped.rfind(b"PK\x05\x06")
         self.assertGreater(eocd,0)
         sig,disk,disk_cd,one,total,cd_size,cd_offset,comment=struct.unpack_from(
             "<4s4H2IH",zipped,eocd
         )
         zip64_offset=eocd
         zip64_record=struct.pack(
-            "<4sQ2H2I4Q",b"PK\\x06\\x06",44,45,45,0,0,
+            "<4sQ2H2I4Q",b"PK\x06\x06",44,45,45,0,0,
             total,total,cd_size,cd_offset
         )
-        locator=struct.pack("<4sIQI",b"PK\\x06\\x07",0,zip64_offset,1)
-        stub=struct.pack("<4s4H2IH",b"PK\\x05\\x06",0,0,
+        locator=struct.pack("<4sIQI",b"PK\x06\x07",0,zip64_offset,1)
+        stub=struct.pack("<4s4H2IH",b"PK\x05\x06",0,0,
                          65535,65535,0xffffffff,0xffffffff,0)
         payload=zipped[:eocd]+zip64_record+locator+stub
         def fake_range(url,start,end,size):
