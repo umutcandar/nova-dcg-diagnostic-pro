@@ -112,3 +112,45 @@ https://www.ultralytics.com/license
 
 Bu belge hukuki tavsiye değildir. Ticari entegrasyon öncesi lisans
 uyumluluğunu netleştirin.
+
+
+## PCB-MC 23 sınıflı tam eğitim hattı (hazır, büyük veri henüz indirilmedi)
+
+Bu kısım **eğitim yapıldı** anlamına gelmez. 4TU tarafından yayımlanan
+**3,77 GB** veri kümesinin tamamı henüz çalışma ortamına indirilip
+model eğitilmedi. GitHub içinde ham veri yüklemiyoruz, Render ücretsiz
+web servisini eğitici olarak kullanmıyoruz.
+
+- Kaynak DOI: https://doi.org/10.4121/7c6e5bda-eecf-4feb-8a3a-7f823b1b0140.v2
+- Dataset resmi ZIP MD5: `1533d1ca6d54c37b19c1a94297c0745c`.
+  Dosyayı indirince hash doğrulanmalı (Mac: `md5 PCB_MC.zip`).
+- Akademik kaynak kodu: https://github.com/betvillab/PCB-MC
+- **Dikkat:** Veride 23 var olan + 8 eksik komponent etiketi bulunur.
+  NOVA parça tanıma eğitiminde **PCB-MC-C (yalnız mevcut parçalar)**
+  kullanılmalı; yokluğu algılayan etiketler karıştırılmamalı.
+- Yeni `pcb_mc_import.py` bu 23 sınıfı kaynak COCO'dan dönüştürür,
+  **Elektrolitik Kondansatör** ile **Kondansatör**, **Zener Diyot** ile
+  **Diyot** ayrımını korur. Resmi `components_only_splits.json`
+  kart bazlı 5-fold ayrımı değiştirmeden yükler.
+- `pcb_mc_train.py` resmi fold ile gerçek 23-sınıflı eğitimi
+  başlatabilir; ilk şart: elde gerçek ZIP, fotoğraflar, görev C COCO
+  anotasyonları, resmi manifest olmalı. Eğitim sonrası ağırlıklar
+  **otomatik canlıya alınmaz**.
+
+Aşağıdaki örnekler, resmi veri paketinin tam yapısı doğrulandıktan
+sonra çalıştırılmak üzere hazırlanmıştır:
+
+```bash
+# Dataseti resmi 4TU'dan edinip ZIP'in MD5 değerini doğrula.
+python pcb_mc_import.py   --images-dir ~/Downloads/PCB-MC/images   --coco-file ~/Downloads/PCB-MC/annotations/PCB-MC-C/annotations.json   --fold-manifest ~/Downloads/PCB-MC/splits/components_only_splits.json   --output ~/nova-pcb-mc/fold0 --fold 0
+python pcb_mc_train.py   --prepared ~/nova-pcb-mc/fold0 --output ~/nova-pcb-mc/experiments/fold0   --epochs 60 --imgsz 960 --batch 4 --device mps
+```
+
+Yayın dosya yapısındaki COCO anotasyonları tek dosya değilse,
+`--coco-file` yolunun her fold'a göre ayarlanması veya importer
+adaptasyonu gerekir. Kaynak arşiv gerçekten kontrol edilmeden bunun
+kesin çalıştığı iddia edilmez.
+
+**Kabul şartı:** 5-fold per-class ölçümlerin tamamı, kontrol setinde
+elektrolitik-kondansatör / diyot karışmaları, model lisansı, model SHA256
+ve hiç görülmemiş NOVA müşteri kartlarında teknisyen incelemesi.
