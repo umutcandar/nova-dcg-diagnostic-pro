@@ -232,7 +232,7 @@ function renderKnowledge(){
    decoded.append(note);
  }
  const bandsVisible=label==='Direnç'||label==='Trimpot';
- $('bandCount').disabled=!bandsVisible;$('marking').disabled=!(bandsVisible||label==='Kondansatör');
+ $('bandCount').disabled=!bandsVisible;$('marking').disabled=!(bandsVisible||(label==='Kondansatör'||label==='Elektrolitik Kondansatör'));
 }
 const BAND_COLORS=['','siyah','kahverengi','kirmizi','turuncu','sari','yesil','mavi','mor','gri','beyaz','altin','gumus'];
 function rebuildBands(){
