@@ -93,6 +93,14 @@ class WebStudioTests(unittest.TestCase):
         self.assertIn(b"NovaKnowledge", body)
         self.assertIn("application/javascript", headers["Content-Type"])
 
+    def test_technician_corrections_script_is_private(self):
+        code, _, _ = self.request("GET", "/web_corrections.js", authorized=False)
+        self.assertEqual(code, 401)
+        code, body, headers = self.request("GET", "/web_corrections.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b"NovaCorrections", body)
+        self.assertIn("application/javascript", headers["Content-Type"])
+
     def test_invalid_data_url_does_not_call_model(self):
         code, body, _ = self.request("POST", "/analyze",
                                      body=json.dumps({"image": "not-an-image"}),
