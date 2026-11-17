@@ -122,6 +122,38 @@ def _verified_coco_categories(z,fold):
     return True
 
 
+def _verify_official_fold_manifest(zipped,fold,files_by_split):
+    """Cross-check real ZIP members against the immutable publisher fold list."""
+    name="PCB_MC/splits/components_only_splits.json"
+    try:
+        info=zipped.getinfo(name)
+    except KeyError as exc:
+        raise ProbeError("Publisher board-aware fold manifest missing") from exc
+    if info.file_size>10*1024*1024:
+        raise ProbeError("Publisher fold manifest exceeds safe size")
+    with zipped.open(info) as source:
+        manifest=json.load(source)
+    if not isinstance(manifest.get("folds"),list):
+        raise ProbeError("Invalid official PCB-MC-C fold manifest")
+    fold_rows=[row for row in manifest["folds"] if row.get("fold")==fold]
+    if len(fold_rows)!=1:
+        raise ProbeError("Requested official board fold missing")
+    row=fold_rows[0]
+    train=row.get("train_images")
+    valid=row.get("valid_images")
+    if not isinstance(train,list) or not isinstance(valid,list):
+        raise ProbeError("Official fold train/valid lists missing")
+    if not all(isinstance(name,str) and name==Path(name).name for name in train+valid):
+        raise ProbeError("Official fold contains path-bearing image identifiers")
+    if set(train)&set(valid):
+        raise ProbeError("Official board fold manifest leaks images across splits")
+    for key,expected in (("train",train),("val",valid)):
+        actual=set(files_by_split[key]["images"])
+        if len(set(expected))!=len(expected) or actual!=set(expected):
+            raise ProbeError(f"Published {key} fold images do not match authoritative manifest")
+    return True
+
+
 def extract_official_fold(archive,destination,*,fold=0,full_md5=True):
     """Extract only one immutable published fold, not an improvised random split."""
     if fold not in range(5):
@@ -160,6 +192,7 @@ def extract_official_fold(archive,destination,*,fold=0,full_md5=True):
             if name in files_by_split[target_split][kind]:
                 raise ProbeError("Duplicate ZIP member within one official fold")
             files_by_split[target_split][kind][name]=info
+        _verify_official_fold_manifest(zipped,fold,files_by_split)
         for split in ("train","val"):
             imgs=files_by_split[split]["images"]
             labels=files_by_split[split]["labels"]
