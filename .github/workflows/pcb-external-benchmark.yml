@@ -1,0 +1,72 @@
+name: Independent PCB model benchmark (CC-BY dataset)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pcb_external_benchmark.py'
+      - 'test_pcb_external_benchmark.py'
+      - '.github/workflows/pcb-external-benchmark.yml'
+jobs:
+  independent-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU-only benchmark dependencies (no trainer)
+        run: python -m pip install "Pillow>=10,<13" "numpy>=1.26,<3" "onnxruntime>=1.19,<2"
+      - name: Verify offline benchmark unit tests
+        run: python -m unittest -v test_pcb_external_benchmark test_web_onnx_detector
+      - name: Sparse fetch CC-BY dataset validation images from pinned commit
+        run: |
+          git clone --quiet --filter=blob:none --sparse --depth 1 \
+            https://github.com/wangshnegqi/pcb-component-detection-dataset-yolo.git /tmp/nova-external
+          git -C /tmp/nova-external sparse-checkout set dataset/images/val dataset/labels/val
+          test "$(git -C /tmp/nova-external rev-parse HEAD)" = "0d7ae7310fa607389779b6132285336ad73e96e1"
+          grep -q 'Creative Commons Attribution 4.0' /tmp/nova-external/LICENSE-DATASET
+          test "$(find /tmp/nova-external/dataset/images/val -type f | wc -l)" -ge 10
+          python - <<'PY'
+          from pathlib import Path
+          root=Path("/tmp/nova-external/dataset")
+          images=list((root/"images/val").glob("*"))
+          assert images
+          for image in images:
+              assert (root/"labels/val"/(image.stem+".txt")).exists(),image
+          print("Source verified",len(images),"photos (no source media committed to NOVA)")
+          PY
+      - name: Evaluate original pinned 21-class ONNX on independent labels
+        run: |
+          python pcb_external_benchmark.py \
+            --dataset /tmp/nova-external \
+            --out artifacts/independent_pcb_benchmark.json
+      - name: Expose report in CI summary
+        if: always()
+        run: |
+          if test -f artifacts/independent_pcb_benchmark.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          r=json.load(open("artifacts/independent_pcb_benchmark.json"))
+          print("### Independent PCB benchmark - exploratory, not field QA")
+          print("CC BY 4.0 data: wangshnegqi/pcb-component-detection-dataset-yolo, 10-class source.")
+          print("Only six unambiguous classes evaluated. Unknown board identity means no production-grade mAP.")
+          print("Image count:",r["counts"]["images"],"Ground-truth boxes:",r["counts"]["ground_truth"])
+          print("Localization recall:",r["localization_recall"],"Correct class recall:",r["correct_label_recall"])
+          for cls,datum in r["classes"].items():
+              print("-",cls,":",datum["correct_class_recall_at_iou_0_5"],"on",datum["gt"],"GT boxes")
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-independent-21class-benchmark
+          path: artifacts/independent_pcb_benchmark.json
+          retention-days: 30
+          if-no-files-found: warn
