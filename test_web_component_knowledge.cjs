@@ -3,14 +3,17 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const kb=require("./web_component_knowledge.js");
 
-test("knowledge table covers all 15 training classes and never claims health",()=>{
-  assert.equal(kb.LABELS.length,15);
+test("knowledge table covers all 24 training classes and never claims health",()=>{
+  assert.equal(kb.LABELS.length,24);
   for(const label of kb.LABELS){
     const item=kb.knowledge(label);
     assert.ok(item.mode);
     assert.equal(item.verified,false);
   }
   assert.equal(kb.knowledge("Trimpot").mode,"resistance");
+  assert.equal(kb.knowledge("Batarya").mode,"none");
+  assert.equal(kb.knowledge("Soğutucu").mode,"none");
+  assert.equal(kb.knowledge("Sigorta").mode,"continuity");
   assert.match(kb.knowledge("Trimpot").explanation,/sürgü|Sürgü/i);
 });
 
