@@ -76,11 +76,26 @@ def normalize_detections(detections, width, height):
             confidence = min(1.0, max(0.0, float(confidence)))
         else:
             confidence = None
+        alternatives = []
+        for alternative in item.get("alternatives", [])[:3]:
+            if not isinstance(alternative, dict):
+                continue
+            value = alternative.get("confidence")
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                continue
+            if not 0 <= value <= 1:
+                continue
+            alternatives.append({
+                "label": str(alternative.get("label", "Bilinmiyor"))[:80],
+                "source_label": str(alternative.get("source_label", ""))[:80],
+                "confidence": float(value),
+            })
         output.append({
             "label": str(item.get("label", "Bilinmiyor"))[:80],
             "source_label": str(item.get("source_label", ""))[:80],
             "bbox_xyxy_pixels": [x1, y1, x2, y2],
             "confidence": confidence,
+            "alternatives": alternatives,
             "source": "model",
             "verified": False,
         })
