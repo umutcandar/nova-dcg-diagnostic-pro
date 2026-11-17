@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - '.github/workflows/pcb-tiled-ab.yml'
+      - 'web_onnx_detector.py'
+      - 'test_web_onnx_detector.py'
 jobs:
   ab-test:
     runs-on: ubuntu-latest
