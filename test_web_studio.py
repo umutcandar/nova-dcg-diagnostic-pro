@@ -133,6 +133,23 @@ class WebStudioTests(unittest.TestCase):
         self.assertFalse(payload["detections"][0]["verified"])
         fake.assert_called_once()
 
+    def test_photo_api_preserves_safe_alternative_classes(self):
+        item = {
+            "label":"Diyot",
+            "source_label":"diode",
+            "bbox_xyxy_pixels":[1,2,30,40],
+            "confidence":.47,
+            "alternatives":[
+                {"label":"Diyot","source_label":"diode","confidence":.47},
+                {"label":"Kondansatör","source_label":"capacitor","confidence":.36},
+                {"label":"Bilinmiyor","confidence":float("nan")},
+            ]
+        }
+        result=web_studio.normalize_detections([item],64,64)[0]
+        self.assertEqual(len(result["alternatives"]),2)
+        self.assertEqual(result["alternatives"][1]["label"],"Kondansatör")
+        self.assertEqual(result["confidence"],.47)
+
     def test_box_normalization_rejects_invalid_coordinates(self):
         cases = [
             {"label": "Bad", "bbox_xyxy_pixels": [0, 0, float("nan"), 8]},
