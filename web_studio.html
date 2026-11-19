@@ -295,7 +295,8 @@ function renderAlternatives(){
    const evidence=document.createElement('p');
    evidence.className='note';
    const family=r.secondary_evidence.label_family==='diode'?'Diyot ailesi':
-                r.secondary_evidence.label_family==='capacitor'?'Kondansatör ailesi':'Belirsiz';
+                r.secondary_evidence.label_family==='capacitor'?'Kondansatör ailesi':
+                r.secondary_evidence.label_family==='other'?'Diğer komponent':'Belirsiz';
    evidence.textContent='İkinci yerel görsel model: '+family+
      (r.secondary_evidence.agrees_with_detector?' · İlk modelle aynı aile.':' · İlk modelle farklı aile; kontrol gerekli.')+
      ' Bu öneri doğrulanmış etiket veya arıza sonucu değildir.';
