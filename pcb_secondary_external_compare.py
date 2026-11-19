@@ -18,14 +18,27 @@ from web_onnx_detector import detailed_detect
 from web_studio import normalize_detections
 
 
-def compare(dataset,report_path,weights_path,predict=detailed_detect,session=None):
+def compare(dataset,report_path,weights_path,predict=detailed_detect,session=None,
+            reviewer=None,model_version="v1"):
     root=Path(dataset)
     images=root/"dataset/images/val"
     labels=root/"dataset/labels/val"
     if not images.is_dir() or not labels.is_dir():
         raise FileNotFoundError("Independent external PCB validation set absent")
+    if model_version not in ("v1","v2"):
+        raise ValueError("Unknown secondary reviewer model version")
+    if reviewer is None:
+        if model_version=="v2":
+            from pcb_secondary_inference_v2 import examine
+            reviewer=examine
+        else:
+            reviewer=evaluate_detections
     if session is None:
-        session=load_session(str(Path(report_path).resolve()),str(Path(weights_path).resolve()),False)
+        if model_version=="v2":
+            from pcb_secondary_inference_v2 import load_model
+            session=load_model(str(Path(report_path).resolve()),str(Path(weights_path).resolve()))
+        else:
+            session=load_session(str(Path(report_path).resolve()),str(Path(weights_path).resolve()),False)
     rows=[]
     totals=Counter()
     eligible_labels=frozenset(("Kondansatör","Diyot"))
@@ -45,7 +58,7 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
         totals["target_diode_gt"]+=sum(x["class"]=="Diyot" for x in targets)
         predicted=normalize_detections(predict(photo),width,height)
         targets_pred=[x for x in predicted if x["label"] in eligible_labels]
-        reviewed=evaluate_detections(board,predicted,session,MAX_REVIEW_CROPS)
+        reviewed=reviewer(board,predicted,session,MAX_REVIEW_CROPS)
         totals["images"]+=1
         totals["all_model_predictions"]+=len(predicted)
         totals["main_cap_diode_predictions"]+=len(targets_pred)
@@ -53,6 +66,9 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
         eligible=[p for p in predicted if p.get("secondary_evidence")]
         totals["secondary_disagreements"]+=sum(
             p["secondary_evidence"]["agrees_with_detector"] is False for p in eligible
+        )
+        totals["second_model_other"]+=sum(
+            p["secondary_evidence"]["label_family"]=="other" for p in eligible
         )
         candidates=[]
         for pred_id,pred in enumerate(eligible):
@@ -80,6 +96,8 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
                 totals["helpful_conflicts"]+=1
             if conflict and base_correct:
                 totals["false_conflicts_on_correct"]+=1
+            if proposal["secondary_evidence"]["label_family"]=="other":
+                totals["other_on_matched_cap_or_diode"]+=1
             outcomes.append({
                 "truth":truth["class"],"model":proposal["label"],
                 "secondary":proposal["secondary_evidence"]["label_family"],
@@ -100,6 +118,7 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
         "status":"external_exploratory_second_model_requires_more_test_boards",
         "data_source":"wangshnegqi/pcb-component-detection-dataset-yolo 13 validation images CC BY 4.0",
         "model_source":"PCB-MC-C fold0 MobileNetV3 independently trained",
+        "second_model_version":model_version,
         "method":"YOLO tiled predictions then independent MobileNet crop; IoU >=.5 matching to separate source labels",
         "counts":dict(totals),
         "case_studies":rows,
@@ -121,9 +140,10 @@ if __name__=="__main__":
     parser.add_argument("--dataset",required=True)
     parser.add_argument("--report",required=True)
     parser.add_argument("--model",required=True)
+    parser.add_argument("--version",choices=("v1","v2"),default="v1")
     parser.add_argument("--out",required=True)
     args=parser.parse_args()
-    result=compare(args.dataset,args.report,args.model)
+    result=compare(args.dataset,args.report,args.model,model_version=args.version)
     dest=Path(args.out)
     dest.parent.mkdir(parents=True,exist_ok=True)
     dest.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
