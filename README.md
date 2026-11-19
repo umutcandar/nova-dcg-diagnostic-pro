@@ -13,6 +13,14 @@
   fotoğrafa bağlı tarayıcı kaydıdır, ONNX'i kendiliğinden eğitmez.
 - Teknik eğitim kanıtları ve lisans/veri kısıtları:
   [PCB_MODEL_TRAINING_EVIDENCE.md](PCB_MODEL_TRAINING_EVIDENCE.md).
+- **Bağımsız ikinci görsel yapay zekâ gerçekten eğitilip gerçek YOLO
+  kutularında test edildi.** İki sınıflı ve üç sınıflı modeller,
+  beklenen yararı kanıtlamadığından canlıya alınmadı. Model skorları
+  doğru parça türü veya sağlamlık kanıtı değildir. Sınıf bazlı bağımsız
+  sonuçlar: [SECOND_AI_VALIDATION.md](SECOND_AI_VALIDATION.md).
+- `pcb_secondary_release_gate.py` gerçek veri eksikliği ve yanlış
+  uyarı riskini kontrol ederek deneysel modellerin otomatik yayınını
+  bloklar. Kullanıcı kartları dış API'lere kendiliğinden gönderilmez.
 - **23 sınıflı resmî PCB-MC-C eğitim hattı gerçekten çalıştırıldı**:
   3 turluk ilk denemede 492 eğitim ve 123 resmî kart bazlı doğrulama
   fotoğrafı kullanıldı. mAP50 %2,54 ve recall %3,36; bu araştırma
