@@ -81,6 +81,15 @@ class IndependentReviewerInferenceTests(unittest.TestCase):
         self.assertTrue(items[1]["secondary_evidence"]["agrees_with_detector"])
         self.assertFalse(items[1]["review_required"])
 
+    def test_close_second_model_scores_do_not_trigger_unnecessary_review(self):
+        image=Image.new("RGB",(300,250),"white")
+        row=labeled([40,50,140,160],"Diyot",.6)
+        model=FakeOnnxSession([.20,.19])
+        self.assertEqual(evaluate_detections(image,[row],model),1)
+        self.assertFalse(row["review_required"])
+        self.assertFalse(row["secondary_evidence"]["actionable_disagreement"])
+        self.assertEqual(row["label"],"Diyot")
+
     def test_verified_labels_and_other_components_are_never_touched(self):
         image=Image.new("RGB",(800,600),"white")
         rows=[
