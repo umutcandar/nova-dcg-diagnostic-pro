@@ -37,6 +37,16 @@ class ThirdClassReviewTests(unittest.TestCase):
         self.assertEqual(part["secondary_evidence"]["label_family"],"other")
         self.assertFalse(part["secondary_evidence"]["technician_verified"])
 
+    def test_low_margin_other_prediction_is_not_a_hard_review_alarm(self):
+        image=Image.new("RGB",(240,200),"white")
+        row={"label":"Kondansatör","bbox_xyxy_pixels":[30,30,130,130],
+             "review_required":False,"review_note":"","confidence":.7,"verified":False}
+        result=examine(image,[row],FakeSession([.30,.20,.35]))
+        self.assertEqual(result,1)
+        self.assertFalse(row["review_required"])
+        self.assertFalse(row["secondary_evidence"]["actionable_disagreement"])
+        self.assertEqual(row["label"],"Kondansatör")
+
     def test_same_family_proposal_stays_unverified(self):
         board=Image.new("RGB",(700,500),"white")
         region={"label":"Kondansatör","bbox_xyxy_pixels":[70,50,250,250],
