@@ -26,7 +26,10 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 from PIL import Image
-from playwright.sync_api import sync_playwright
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    sync_playwright = None
 import web_studio
 
 PASSWORD = "ci-test-credential-not-production-only"
@@ -34,6 +37,10 @@ USERNAME = "ci-tester"
 TIMEOUT = 200
 
 
+@unittest.skipUnless(
+    sync_playwright is not None and os.environ.get("NOVA_RUN_BROWSER_E2E") == "1",
+    "Browser E2E only runs in the dedicated Playwright workflow"
+)
 class BrowserAndRealInferenceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
