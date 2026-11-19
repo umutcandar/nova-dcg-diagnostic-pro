@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: python -m pip install --upgrade pip pillow ultralytics
+        run: python -m pip install --upgrade pip pillow ultralytics "PyYAML>=6,<7"
       - name: Compile Python source
         run: python -m compileall -q .
       - name: Run unit tests
