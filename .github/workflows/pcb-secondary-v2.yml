@@ -1,0 +1,70 @@
+name: Train independent capacitor-diode-OTHER visual AI (research)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pcb_secondary_reviewer_v2.py'
+      - 'test_pcb_secondary_reviewer_v2.py'
+      - '.github/workflows/pcb-secondary-v2.yml'
+jobs:
+  independent-three-family:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    permissions:
+      contents: read
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU-only transfer learning and inference
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu \
+            "torch==2.5.1+cpu" "torchvision==0.20.1+cpu"
+          python -m pip install "Pillow>=10,<13" "numpy>=1.26,<3" \
+            "PyYAML>=6,<7" "onnx>=1.17,<2" "onnxruntime>=1.19,<2"
+      - name: Test OTHER class and deterministic source balancing
+        run: python -m unittest -v test_pcb_secondary_reviewer_v2 test_pcb_secondary_reviewer
+      - name: Download and MD5-verify official 4TU board-disjoint PCB photos
+        run: |
+          python pcb_mc_download_fold.py \
+            --zip /tmp/PCB_MC.zip \
+            --output /tmp/nova-secondary-data/fold0 \
+            --fold 0 --download
+      - name: Train independent three-family MobileNetV3 and export ONNX
+        run: |
+          python pcb_secondary_reviewer_v2.py \
+            --prepared /tmp/nova-secondary-data/fold0 \
+            --output artifacts/secondary_v2 \
+            --epochs 12 --batch-size 32 --device cpu
+      - name: Publish real validated class support and hold production off
+        if: always()
+        run: |
+          if test -f artifacts/secondary_v2/reviewer_v2_training_report.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          r=json.load(open("artifacts/secondary_v2/reviewer_v2_training_report.json"))
+          print("### Three-class independent PCB reviewer: capacitor, diode, OTHER")
+          print("Original rare examples:",r["train"]["electrolytic_examples_preserved"],
+                "electrolytic and",r["train"]["zener_examples_preserved"],"Zener")
+          print("Best epoch:",r["best_epoch"])
+          print("Macro-F1:",r["best_result"]["macro_f1"])
+          print("Family metrics:")
+          for k,v in r["best_result"]["by_family"].items():print("-",k,":",v)
+          print("Source label support:",r["best_result"]["source_label_accuracy"])
+          print("APPROVED FOR PRODUCTION:",r["approved_for_live_use"])
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-secondary-v2-cap-diode-other-research
+          path: |
+            artifacts/secondary_v2/reviewer_v2_training_report.json
+            artifacts/secondary_v2/reviewer_cap_diode_other.onnx
+          if-no-files-found: warn
+          retention-days: 30
