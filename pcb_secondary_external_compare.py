@@ -70,6 +70,9 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
         totals["second_model_other"]+=sum(
             p["secondary_evidence"]["label_family"]=="other" for p in eligible
         )
+        totals["actionable_secondary_disagreements"]+=sum(
+            p["secondary_evidence"].get("actionable_disagreement",False) for p in eligible
+        )
         candidates=[]
         for pred_id,pred in enumerate(eligible):
             for truth_id,gt in enumerate(targets):
@@ -96,6 +99,12 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
                 totals["helpful_conflicts"]+=1
             if conflict and base_correct:
                 totals["false_conflicts_on_correct"]+=1
+            if proposal["secondary_evidence"].get("actionable_disagreement"):
+                totals["actionable_conflicts_on_matched"]+=1
+                if base_correct:
+                    totals["actionable_false_alarms_on_correct"]+=1
+                elif reviewer_correct:
+                    totals["actionable_helpful_conflicts"]+=1
             if proposal["secondary_evidence"]["label_family"]=="other":
                 totals["other_on_matched_cap_or_diode"]+=1
             outcomes.append({
@@ -103,7 +112,9 @@ def compare(dataset,report_path,weights_path,predict=detailed_detect,session=Non
                 "secondary":proposal["secondary_evidence"]["label_family"],
                 "base_correct":base_correct,
                 "secondary_correct":reviewer_correct,
-                "conflict":conflict,"overlap":round(overlap,3),
+                "conflict":conflict,
+                "actionable_conflict":proposal["secondary_evidence"].get("actionable_disagreement",False),
+                "overlap":round(overlap,3),
             })
         rows.append({
             "photo":photo.name,
