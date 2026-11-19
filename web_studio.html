@@ -100,6 +100,7 @@ footer{margin:auto;max-width:1720px;padding:1px 20px 24px;color:#809bb3;font-siz
 <aside class="side">
 <section class="panel"><div class="block"><div class="headline"><h2>Komponentler</h2><span id="count" class="counter">0 aday</span></div><p class="note">Sarı kutular model önerisidir. Yeşiller teknisyen doğrulamasıdır. Şüpheli modeller alternatif etiketlerle gösterilir.</p>
 <div id="correctionSummary" class="note" style="margin-top:8px"></div>
+<div id="secondaryModelStatus" class="note" style="margin-top:8px" role="status">İkinci yerel görsel model henüz etkin değil. Mevcut tahminler teknisyen doğrulaması gerektirir.</div>
 <div id="results"><p class="note" style="margin-top:12px">Henüz fotoğraf yüklenmedi.</p></div>
 <div class="actions"><button id="removeRegion" disabled>× Yanlış adayı kaldır</button>
 <button id="forgetCorrections" disabled>Bu fotoğrafın düzeltmelerini sıfırla</button>
@@ -286,10 +287,20 @@ function renderAlternatives(){
  const hint=NovaCorrections.reviewHint(r,imgW,imgH);
  const alternatives=Array.isArray(r.alternatives)?r.alternatives.filter(a=>
     a&&LABELS.includes(a.label)&&a.label!==r.label&&a.confidence>=.10).slice(0,3):[];
- if(!hint&&!r.review_required&&!alternatives.length)return;
+ if(!hint&&!r.review_required&&!alternatives.length&&!r.secondary_evidence)return;
  root.hidden=false;
  if(hint||r.review_required){root.classList.add('reviewHint');const t=document.createElement('p');t.className='warning';t.textContent='⚠ Parça türü kontrol edilmeli: '+[r.review_note,hint].filter(Boolean).join(' ');root.append(t);}
  else root.classList.remove('reviewHint');
+ if(r.secondary_evidence){
+   const evidence=document.createElement('p');
+   evidence.className='note';
+   const family=r.secondary_evidence.label_family==='diode'?'Diyot ailesi':
+                r.secondary_evidence.label_family==='capacitor'?'Kondansatör ailesi':'Belirsiz';
+   evidence.textContent='İkinci yerel görsel model: '+family+
+     (r.secondary_evidence.agrees_with_detector?' · İlk modelle aynı aile.':' · İlk modelle farklı aile; kontrol gerekli.')+
+     ' Bu öneri doğrulanmış etiket veya arıza sonucu değildir.';
+   root.append(evidence);
+ }
  const lead=document.createElement('p');lead.textContent='Alternatifleri kontrol et. Bu değerler model skorudur; doğruluk oranı değildir.';root.append(lead);
  const row=document.createElement('div');row.className='quickFix';
  const offered=new Set();
@@ -514,6 +525,13 @@ try{
 const response=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:analysisImage()}),signal:ctl.signal,cache:'no-store'});
 let payload;try{payload=await response.json();}catch(e){throw new Error('Sunucu geçici olarak yanıt vermedi. Tekrar tara veya manuel işaretle.');}if(token!==requestId)return;
 if(!response.ok)throw new Error(payload.error||'Tarama işlemi başarısız');
+const state=payload.secondary_review?.state||'not_enabled';
+$('secondaryModelStatus').textContent=
+  state==='independent_reviewer_used'
+  ? 'İkinci yerel görsel model '+(payload.secondary_review.candidates_reviewed||0)+' adayı bağımsız inceledi; öneriler teknisyen onayı değildir.'
+  : state==='reviewer_unavailable'
+  ? 'İkinci görsel model şu anda kullanılamıyor; ilk model sonuçları incelenebilir.'
+  : 'İkinci görsel model henüz etkin değil. Araştırma sonuçları doğrulanana kadar ilk model önerileri gösterilir.';
 const found=Array.isArray(payload.detections)?payload.detections:[];
 regions=regions.filter(r=>r.source==='manual');$('completedReview').checked=false;
 const analyzedW=Number(payload.image_width)||imgW,analyzedH=Number(payload.image_height)||imgH;
@@ -523,7 +541,8 @@ found.forEach(r=>{
  if(!validBox(box))return;
  regions.push({id:++seq,label:String(r.label||'Bilinmiyor'),source:'model',
   confidence:typeof r.confidence==='number'?r.confidence:null,confirmed:false,
-  review_required:r.review_required===true,review_note:typeof r.review_note==='string'?r.review_note.slice(0,220):'',
+  review_required:r.review_required===true,review_note:typeof r.review_note==='string'?r.review_note.slice(0,300):'',
+  secondary_evidence:r.secondary_evidence||null,
   bbox_xyxy_pixels:box,source_label:r.source_label||null,
   alternatives:Array.isArray(r.alternatives)?r.alternatives.filter(a=>
     a&&LABELS.includes(a.label)&&typeof a.confidence==='number').slice(0,3):[]});
