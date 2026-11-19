@@ -109,6 +109,13 @@ class BrowserAndRealInferenceTest(unittest.TestCase):
             ],
             "review_required":True,
             "review_note":"Diyot ve kondansatör model skorları yakın; parçanın türünü doğrula.",
+            "secondary_evidence":{
+                "model":"independent_mobilenetv3_crop_reviewer",
+                "label_family":"capacitor",
+                "relative_scores":{"capacitor":.81,"diode":.19},
+                "agrees_with_detector":False,
+                "technician_verified":False
+            },
         })
         return candidates
 
@@ -127,6 +134,7 @@ class BrowserAndRealInferenceTest(unittest.TestCase):
                 "model_name":"pinned_21_class_onnx",
                 "model_class_count":21,
                 "inference_mode":"tiled_detail",
+                "secondary_review":{"state":"independent_reviewer_used","candidates_reviewed":1},
             }
             route.fulfill(status=200, content_type="application/json",body=json.dumps(result))
         self.page.route("**/analyze",handle)
@@ -143,7 +151,10 @@ class BrowserAndRealInferenceTest(unittest.TestCase):
         )
         self.assertEqual(dimensions[-1],(4096,3072))  # No lossy 1600 px thumbnail.
         self.assertIn("7. Diyot",self.page.locator("#results").inner_text())
+        self.assertIn("İkinci yerel görsel model 1 adayı",self.page.locator("#secondaryModelStatus").inner_text())
         self.assertTrue(self.page.locator("#modelAlternatives").is_visible())
+        self.assertIn("İkinci yerel görsel model: Kondansatör ailesi",
+                      self.page.locator("#modelAlternatives").inner_text())
         self.assertIn("Parça türü kontrol edilmeli",
                       self.page.locator("#modelAlternatives").inner_text())
         self.assertIn("Kondansatör",self.page.locator("#modelAlternatives").inner_text())
