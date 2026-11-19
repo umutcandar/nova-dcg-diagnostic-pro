@@ -117,7 +117,30 @@ def crop_region(image, box, side=SIDE, margin=.27):
     return cut.convert("RGB").resize((side,side),resample=Image.Resampling.BICUBIC)
 
 
-def make_dataset(records,augment=False):
+def precache_crops(records, destination):
+    """Read each large public board photo once, retaining only tiny 160px crops.
+
+    On a 4K+ PCB an epoch can contain >1500 component boxes. Reloading full
+    photo for each box would otherwise consume minutes and huge CPU I/O.
+    """
+    destination=Path(destination)
+    destination.mkdir(parents=True,exist_ok=True)
+    by_image={}
+    for index,(path,box,label,source_id) in enumerate(records):
+        by_image.setdefault(path,[]).append((index,box,label,source_id))
+    cache=[None]*len(records)
+    for path,parts in by_image.items():
+        with Image.open(path) as opened:
+            board=ImageOps.exif_transpose(opened).convert("RGB")
+        for index,box,label,source_id in parts:
+            name=destination/f"crop_{index:05d}.jpg"
+            cut=crop_region(board,box)
+            cut.save(name,format="JPEG",quality=90)
+            cache[index]=(name,label,source_id)
+    return cache
+
+
+def make_dataset(cached,augment=False):
     import torch
     from torchvision import transforms
     if augment:
@@ -135,12 +158,11 @@ def make_dataset(records,augment=False):
             transforms.Normalize(mean=(.485,.456,.406),std=(.229,.224,.225)),
         ])
     class Crops(torch.utils.data.Dataset):
-        def __len__(self):return len(records)
+        def __len__(self):return len(cached)
         def __getitem__(self,index):
-            path,box,label,source_id=records[index]
+            path,label,source_id=cached[index]
             with Image.open(path) as opened:
-                image=ImageOps.exif_transpose(opened).convert("RGB")
-                cropped=crop_region(image,box)
+                cropped=opened.convert("RGB")
             return recipe(cropped),label
     return Crops()
 
@@ -194,8 +216,10 @@ def train_reviewer(prepared,output,epochs=12,device="cpu",batch_size=32):
     torch.manual_seed(RESEARCH_SEED)
     random.seed(RESEARCH_SEED)
     torch.set_num_threads(2)
-    training=make_dataset(train,True)
-    validation=make_dataset(val,False)
+    train_cached=precache_crops(train,out/"cached_crops/train")
+    val_cached=precache_crops(val,out/"cached_crops/val")
+    training=make_dataset(train_cached,True)
+    validation=make_dataset(val_cached,False)
     train_counts=Counter(x[2] for x in train)
     weights=[1.0/train_counts[x[2]] for x in train]
     sampler=WeightedRandomSampler(weights, num_samples=len(train),replacement=True,
