@@ -297,8 +297,12 @@ function renderAlternatives(){
    const family=r.secondary_evidence.label_family==='diode'?'Diyot ailesi':
                 r.secondary_evidence.label_family==='capacitor'?'Kondansatör ailesi':
                 r.secondary_evidence.label_family==='other'?'Diğer komponent':'Belirsiz';
-   evidence.textContent='İkinci yerel görsel model: '+family+
-     (r.secondary_evidence.agrees_with_detector?' · İlk modelle aynı aile.':' · İlk modelle farklı aile; kontrol gerekli.')+
+   const verdict=r.secondary_evidence.agrees_with_detector
+     ? ' · İlk modelle aynı aile önerisi.'
+     : r.secondary_evidence.actionable_disagreement===true
+     ? ' · Güçlü sınıf çelişkisi; teknisyen kontrolü gerekli.'
+     : ' · Model önerileri farklı, fakat skor farkı yetersiz; otomatik karar yok.';
+   evidence.textContent='İkinci yerel görsel model: '+family+verdict+
      ' Bu öneri doğrulanmış etiket veya arıza sonucu değildir.';
    root.append(evidence);
  }
