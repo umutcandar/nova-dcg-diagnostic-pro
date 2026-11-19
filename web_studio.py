@@ -304,6 +304,10 @@ class Handler(BaseHTTPRequestHandler):
                         "manual_mode_available": True,
                     })
                 results = normalize_detections(detections, width, height)
+                # Offline second vision AI remains disabled unless its independently
+                # evaluated, SHA256-verified and approved ONNX is configured.
+                from pcb_secondary_inference import run_if_approved
+                secondary = run_if_approved(path, results)
                 return self.send_payload(200, {
                     "detections": results,
                     "image_width": width,
@@ -312,6 +316,7 @@ class Handler(BaseHTTPRequestHandler):
                     "model_name": "pinned_21_class_onnx",
                     "model_class_count": 21,
                     "inference_mode": scan_mode,
+                    "secondary_review": secondary,
                 })
         except (OSError, ValueError):
             LOG.exception("PCB image processing failed")
