@@ -1,0 +1,56 @@
+name: Autonomous safety gate for independent PCB second AI research
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pcb_secondary_release_gate.py'
+      - 'test_pcb_secondary_release_gate.py'
+      - '.github/workflows/pcb-secondary-release-gate.yml'
+jobs:
+  prevent-bad-second-model-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test automatic safety gate contract
+        run: python -m unittest -v test_pcb_secondary_release_gate
+      - name: Retrieve actual v1 and v2 independent real-YOLO-box measurements
+        run: |
+          gh run download 44588017665 \
+            --repo umutcandar/nova-dcg-diagnostic-pro \
+            --name nova-two-vision-model-real-yolo-box-comparison \
+            --dir /tmp/secondary-gate/v1
+          gh run download 44590261536 \
+            --repo umutcandar/nova-dcg-diagnostic-pro \
+            --name nova-three-class-real-yolo-crop-evaluation \
+            --dir /tmp/secondary-gate/v2
+      - name: Evaluate actual errors, insufficient diode boards and release veto
+        run: |
+          python pcb_secondary_release_gate.py \
+            --v1 /tmp/secondary-gate/v1/independent_yolo_crop_review.json \
+            --v2 /tmp/secondary-gate/v2/second_model_v2_external_audit.json \
+            --out artifacts/secondary_ai_release_hold.json
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          item=json.load(open("artifacts/secondary_ai_release_hold.json"))
+          print("### NOVA independent second-AI release gate")
+          for row in item["results"]:
+              print("Model:",row["name"],"Result:",row["verdict"])
+              print("Actionable false alarms:",row["actionable_false_alarm_rate"])
+              print("Net benefit:",row["net_actionable_benefit"])
+              for problem in row["blockers"]:print("- ",problem)
+          assert item["automatic_deployment_permitted"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nova-second-ai-automated-release-hold
+          path: artifacts/secondary_ai_release_hold.json
+          retention-days: 30
