@@ -1,0 +1,75 @@
+name: Train independent capacitor-diode image reviewer (research)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pcb_secondary_reviewer.py'
+      - 'test_pcb_secondary_reviewer.py'
+      - '.github/workflows/pcb-secondary-reviewer.yml'
+jobs:
+  independent-crop-classifier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    permissions:
+      contents: read
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      YOLO_CONFIG_DIR: /tmp/nova-research-yolo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data-audit and CPU MobileNetV3 dependencies
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu \
+            "torch==2.5.1+cpu" "torchvision==0.20.1+cpu"
+          python -m pip install "Pillow>=10,<13" "PyYAML>=6,<7" \
+            "numpy>=1.26,<3" "onnx>=1.17,<2" "onnxruntime>=1.19,<2"
+      - name: Test crop boundaries, source mapping and class-imbalance scoring
+        run: |
+          python -m unittest -v test_pcb_secondary_reviewer
+          python -m py_compile pcb_secondary_reviewer.py
+      - name: Get real 4TU PCB-MC-C official board fold 0, verify whole ZIP MD5
+        run: |
+          df -h .
+          python pcb_mc_download_fold.py --zip /tmp/PCB_MC.zip \
+            --output /tmp/nova-secondary-data/fold0 --fold 0 --download
+      - name: Train independent pretrained MobileNetV3 crop classifier and export ONNX
+        run: |
+          python pcb_secondary_reviewer.py \
+            --prepared /tmp/nova-secondary-data/fold0 \
+            --output artifacts/secondary_reviewer \
+            --epochs 12 --batch-size 32 --device cpu
+      - name: Display actual independent-board classifier metrics and keep production blocked
+        if: always()
+        run: |
+          if test -f artifacts/secondary_reviewer/reviewer_training_report.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          r=json.load(open('artifacts/secondary_reviewer/reviewer_training_report.json'))
+          print("### Independent PCB capacitor-vs-diode visual reviewer — NOT DEPLOYED")
+          print("Source:",r["source"],"fold",r["source_fold"])
+          print("Source train group:",r["train"]["source_instances"])
+          print("Source val group:",r["validation"]["source_instances"])
+          print("Best epoch:",r["best_epoch"])
+          print("Validation macro F1:",r["best_result"]["macro_f1"])
+          print("Class report:")
+          for k,vals in r["best_result"]["by_class"].items():
+              print("-",k,":",vals)
+          print("Checksum:",r["model"]["sha256"])
+          print("Production approved:",r["approved_for_live_use"])
+          print("NEXT: test on full YOLO inference crops from separate unseen boards")
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-independent-cap-diode-reviewer-research
+          path: |
+            artifacts/secondary_reviewer/reviewer_training_report.json
+            artifacts/secondary_reviewer/reviewer_capacitor_diode.onnx
+          if-no-files-found: warn
+          retention-days: 30
