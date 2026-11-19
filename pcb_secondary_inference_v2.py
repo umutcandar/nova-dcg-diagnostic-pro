@@ -96,18 +96,21 @@ def examine(image,detections,session,limit=MAX_REVIEW_CROPS):
         preferred=max(scores,key=scores.get)
         base_family=LABEL_TO_FAMILY[det["label"]]
         agrees=preferred==base_family
+        strong_conflict=(not agrees and scores[preferred]>=.78 and
+                         scores[preferred]-scores[base_family]>=.45)
         evidence={
             "model":"independent_mobilenetv3_three_family_reviewer",
             "scope":"capacitor_diode_or_other_annotated_component",
             "label_family":preferred,
             "relative_scores":scores,
             "agrees_with_detector":agrees,
+            "actionable_disagreement":strong_conflict,
             "technician_verified":False,
             "no_electrical_health_claim":True,
             "note":"Uncalibrated score on cropped component; NOT background/fault diagnosis.",
         }
         det["secondary_evidence"]=evidence
-        if not agrees:
+        if strong_conflict:
             det["review_required"]=True
             msg=("İkinci model başka bir komponent ailesi önerdi; kontrol et."
                  if preferred!="other" else
