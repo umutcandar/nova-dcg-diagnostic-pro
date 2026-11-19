@@ -133,18 +133,21 @@ def evaluate_detections(image,detections,session,limit=MAX_REVIEW_CROPS):
         proposed=max(scores,key=scores.get)
         original=LABEL_TO_FAMILY[region["label"]]
         conflict=original!=proposed
+        strong_conflict=(conflict and scores[proposed]>=.78 and
+                         scores[proposed]-scores[original]>=.45)
         evidence={
             "model":"independent_mobilenetv3_crop_reviewer",
             "scope":"capacitor_vs_diode_only",
             "label_family":proposed,
             "relative_scores":scores,
             "agrees_with_detector":not conflict,
+            "actionable_disagreement":strong_conflict,
             "technician_verified":False,
             "no_electrical_health_claim":True,
             "note":"Relative visual model scores; not calibrated probabilities.",
         }
         region["secondary_evidence"]=evidence
-        if conflict:
+        if strong_conflict:
             region["review_required"]=True
             prior=region.get("review_note","")
             message="İkinci görsel model farklı parça ailesi öneriyor; manuel kontrol gerekli."
