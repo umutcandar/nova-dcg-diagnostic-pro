@@ -74,7 +74,7 @@ başka yanlış pozitifler hakkında güvenilir "burada parça yok" kararı vere
 
 Devam çalışması için **farklı fiziksel kartlara ait** tam etiketli fotoğraflar
 ve denetlenmiş “no component/background” kırpıntıları gerekli. Özellikle
-diyot, elektrolitik kondansatör ve Zener diyor örnekleri çok azdır. Farklı
+diyot, elektrolitik kondansatör ve Zener diyot örnekleri çok azdır. Farklı
 kartlar, ışık, kamera ve parça boyutları eğitim, doğrulama ve testte
 birbirine karıştırılmamalıdır.
 
